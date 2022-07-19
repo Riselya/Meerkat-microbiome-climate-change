@@ -471,15 +471,16 @@ ggplot(climate_df_Year, aes(x = Year, y = Measurement, col = Climate))+
 
 ```
 
-*TB by year
+### TB by year
 
 ```{r}
-TB_by_year <- read.csv("C:/Users/risel/Dropbox/Sommer postdoc/Meerkat project/PROJECTS/MEERKAT DATA/TB data/TB_by_year_2021_11_12.csv")
+#TB_by_year <- read.csv("C:/Users/risel/Dropbox/Sommer postdoc/Meerkat project/PROJECTS/MEERKAT DATA/TB data/TB_by_year_2021_11_12.csv")
 TB_by_year <- read.csv("C:/Users/risel/Dropbox/Sommer postdoc/Meerkat project/PROJECTS/MEERKAT DATA/TB data/TB_by_year_ID_and_groups.csv")
 
 head(TB_by_year)
 
 TB_summary_year<-TB_by_year %>% group_by(year, current_TB_status_2) %>% summarize(freq = n())
+
 head(TB_summary_year)
 TB_summary_year2<-TB_by_year %>% group_by(year) %>% summarize(freq = n())
 head(TB_summary_year2)
@@ -519,31 +520,35 @@ TB_summary_year<-data.frame(TB_summary_year)
 #str(TB_summary_year)
 
 
-yearly_temp_df<-data.frame(yearly_temp_df)
-yearly_temp_df$Year<-as.integer(yearly_temp_df$Year)
-
-
 plot_TB2<-ggplot(subset(TB_summary_year, TB_status != "TB unexposed"), aes(x = Year, y = Proportion, group = TB_status, fill = TB_status, col =TB_status))+
   theme_bw(base_size = 14)+
   geom_path(size = 1)+
    geom_errorbar(aes(min = Proportion -se, max = Proportion +se), width = 0, size = 1)+
-  geom_point(size = 2, pch = 21, col = "black")+
+  geom_point(size = 3, pch = 21, col = "black")+
   scale_fill_manual(values = c("goldenrod1", "red"))+
   scale_color_manual(values = c("goldenrod1", "red"))+
   ylab("Proportion population")+
   labs(fill = "TB status", col = "TB status")+
     xlab("Year")+
-  theme(legend.position = c(0.25, 0.95),
+  theme(legend.position = c(0.25, 0.90),
        # legend.justification = c("center", "top"), 
         legend.title = element_blank(), 
-         legend.key.height = unit(0.4, 'cm'),
-        legend.key.width = unit(0.1, 'cm'))+
+         legend.key.height = unit(0.5, 'cm'),
+        legend.key.width = unit(0.5, 'cm'),
+        legend.text =element_text(size=14))+
      scale_x_continuous(breaks =  c(1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,  2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015,2016, 2017, 2018, 2019), expand = c(0,0))+
 theme(axis.text.x = element_text(angle = 90, vjust=0.5))+
   theme( legend.background = element_blank(),
         legend.box.background =element_blank())
           
           #element_rect(colour = "grey", fill = "white"))
+
+
+
+
+yearly_temp_df<-data.frame(yearly_temp_df)
+yearly_temp_df$Year<-as.integer(yearly_temp_df$Year)
+
 
 
 # temp 
@@ -913,7 +918,7 @@ plot(time_legend)
 
 ```
 
-# 3. Fig SX. Visualising raw data per individual
+# 3. Fig S3. Visualising raw data per individual
 
 ```{r}
 
@@ -1005,6 +1010,8 @@ p2<-ggplot(metadata2, aes(x = IndividID, y = 1, fill = TB_status))+
 ######## birth year
 
 
+
+
 p3<-ggplot(metadata2, aes(y = 1, x = IndividID, fill = BirthYear))+
   geom_tile()+
   theme_void(base_size = 14)+
@@ -1066,7 +1073,7 @@ sd(bacilli_2014$Abundance)
 
 ```
 
-# 6. Fig SX. Split by storage, season and group
+# 6. Figs S4, S5 and S9. Split by storage, season and group
 
 ```{r}
 
@@ -1210,7 +1217,7 @@ group_freq<-data.frame(table(metadata_groups$GroupAtSampling))
 group_freq<-group_freq %>% arrange(-Freq)
 head(group_freq, 10)
 
-top_groups<-group_freq$Var1[1:10]
+top_groups<-group_freq$Var1[1:15]
 
 
 group_ps_class<-tax_glom(meerkat_filtered, taxrank = "Class")
@@ -1249,7 +1256,7 @@ ggplot(subset(class_per_storage, Group_plot != "Other"), aes(x =Year, y = Abunda
 
 ```
 
-# Fig 2a: Microbiome composition by year barplot
+# Fig 3: Microbiome composition by year barplot
 
 ```{r}
 
@@ -1279,6 +1286,7 @@ class_per_year$Sample<- as.integer(class_per_year$Sample)
 
 class_per_year<-class_per_year%>% group_by(Sample, Class_plot)%>%summarize(Abundance = sum(Abundance))
 class_per_year<-data.frame(class_per_year)
+class_per_year$Sample<-factor(class_per_year$Sample)
 
 
 plot_mb_year<-ggplot(class_per_year, aes(x =Sample, y = Abundance, fill = Class_plot))+
@@ -1291,9 +1299,9 @@ theme(axis.text.x = element_text(angle = 90, vjust = 0.9, hjust=1))+
   labs(fill = "Bacterial class")+
  #  theme(plot.margin=unit(c(0.2,0.2,0,0.2),"cm"))+
    scale_y_continuous(expand = c(0,0))+
-   scale_x_continuous(breaks =  c(1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 
-                                2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015,
-                                2016, 2017, 2018, 2019), expand = c(0,0))+
+  # scale_x_continuous(breaks =  c(1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 
+   #                             2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015,
+  #                              2016, 2017, 2018, 2019), expand = c(0,0))+
   xlab("Year")
 
 
@@ -1301,6 +1309,7 @@ year_freq<-data.frame(table(sample_data(meerkat_filtered)$Year))
 
 
 head(year_freq)
+  str(year_freq)
 
 year_hist<-ggplot(year_freq, aes(x = Var1, y = Freq)) + geom_col(fill = "lightgray", col = "black")+
 # theme(plot.margin=unit(c(0.2,5,0.2,0.2),"cm"))+
@@ -1312,6 +1321,36 @@ year_hist<-ggplot(year_freq, aes(x = Var1, y = Freq)) + geom_col(fill = "lightgr
 year_plot<-ggarrange(year_hist, plot_mb_year, ncol = 1, align = "v", heights = c(1,7), legend = "none")+
      theme(plot.margin=unit(c(0.2,0.2,0.2,0.6),"cm"))
 
+
+
+
+## tb
+
+TB_summary_year2<-subset(TB_summary_year, TB_status == "TB diseased")
+
+subset(TB_summary_year, Year == 1997)
+str(TB_summary_year2)
+
+extra_rows<-data.frame(as.integer(1997), as.factor("TB diseased")   , as.integer(0) ,  as.integer(165) ,as.numeric(0) ,as.numeric(0))
+names(extra_rows)<-names(TB_summary_year2)
+
+extra_rows2<-data.frame(as.integer(1998), as.factor("TB diseased")   , as.integer(0) ,  as.integer(165) ,as.numeric(0) ,as.numeric(0))
+names(extra_rows2)<-names(TB_summary_year2)
+
+
+TB_summary_year3<-rbind(TB_summary_year2, extra_rows, extra_rows2)
+TB_summary_year3$Year<-factor(TB_summary_year3$Year)
+summary(TB_summary_year3)
+
+
+TB_hist<-ggplot(TB_summary_year3, aes(y = Proportion, x = Year))+
+  geom_col(fill = "brown2", col = "black")+
+# theme(plot.margin=unit(c(0.2,5,0.2,0.2),"cm"))+
+  theme(axis.text.x = element_blank(), axis.title.x = element_blank())+
+  theme(legend.position = "none")
+
+year_plot<-ggarrange(year_hist, TB_hist, plot_mb_year, ncol = 1, align = "v", heights = c(1,1, 5), legend = "none", labels = c("b)", "c)", "d)"), label.x = -0.07)+
+     theme(plot.margin=unit(c(0.2,0.2,0.2,1),"cm"))
 
 
 ```
@@ -1805,16 +1844,18 @@ ord_plot<-ggplot(vectors_df, aes(x = CAP1, y = CAP2))+
     aes(CAP1 *3, CAP2*3, label = Label))+
   
   # add species
-  geom_point(data = species_scores,  size = 4, col = "black", pch = 8, stroke = 1)+
+  geom_point(data = species_scores,  size = 4, col = "black", pch = 8, stroke = 0, alpha = 0)+
    ggrepel::geom_label_repel(data=species_scores,  
     alpha = 0.9, col = "black", size = 2.5, fill = "skyblue", 
     aes( label = Genus))
 
 
 
-ggarrange(ord_plot,year_plot,  ncol = 2 , common.legend = T, legend = "right", widths = c(4,2), labels = c("a)", "b)"))
+ggarrange(ord_plot,year_plot,  ncol = 2 , common.legend = T, legend = "right", widths = c(3.5,2), labels = c("a)", NA))
 
 ggsave("Figures/Fig3.pdf")
+
+
 #Saving 11.6 x 5.91 in image
 
 ```
@@ -2344,7 +2385,7 @@ ggplot(subset(condition_estimates_df, Taxa!= "uncultured"), aes( x = Estimate, y
   geom_point( aes(col = Significant), size = 3)+
   geom_errorbarh(aes(col = Significant, xmin = ((Estimate- Std..Error)-0.0005), xmax = ((Estimate+ Std..Error)+0.0005) ), height = 0, size = 1)+
   geom_vline(xintercept = 0, linetype = "dashed")+
-  scale_color_manual(values = c("grey", "red"))+
+  scale_color_manual(values = c("grey", "blue"))+
    theme(axis.text.y = element_blank(), axis.title.y = element_blank())+
   xlab("Effect size")+
   xlim(c(-0.004,NA))+
@@ -2391,7 +2432,7 @@ ggplot(subset(temp_estimates_df, Taxa!= "uncultured"), aes( x = Estimate, y = Ta
   geom_point( aes(col = Significant), size = 3)+
   geom_errorbarh(aes(col = Significant, xmin = Estimate- Std..Error, xmax = Estimate+ Std..Error), height = 0, size = 1)+
   geom_vline(xintercept = 0, linetype = "dashed")+
-  scale_color_manual(values = c("grey", "red"))+
+  scale_color_manual(values = c("grey", "blue"))+
    theme(axis.text.y = element_blank(), axis.title.y = element_blank())+
   xlab("Effect size")+
  # xlim(c(-0.004,NA))+
@@ -2437,7 +2478,7 @@ ggplot(subset(rainfall_estimates_df, Taxa!= "uncultured"), aes( x = Estimate, y 
   geom_point( aes(col = Significant), size = 3)+
   geom_errorbarh(aes(col = Significant, xmin = Estimate- Std..Error, xmax = Estimate+ Std..Error), height = 0, size = 1)+
   geom_vline(xintercept = 0, linetype = "dashed")+
-  scale_color_manual(values = c("grey", "red"))+
+  scale_color_manual(values = c("grey", "blue"))+
    theme(axis.text.y = element_blank(), axis.title.y = element_blank())+
   xlab("Effect size")+
  # xlim(c(-0.004,NA))+
@@ -2481,7 +2522,7 @@ plots <- ggarrange(rm_legend(plot_tb_1), plot_tb_2, plot_rainfall, plot_temp, pl
 # figure 3
 ggarrange(plots, legend_1, widths = c(0.85, 0.15))
 
-ggsave("Figures/Fig_4.pdf")
+ggsave("Figures/Fig4.pdf")
 
 
 
@@ -2679,7 +2720,7 @@ fit_genus <- coxme::coxme(Surv(FollowUp_180, Survival_180) ~ Age + Season + TB_s
 
 fit_genus
 
-sjPlot::plot_model(fit_genus, axis.lim = c(0.8,20), vline.color = "darkgrey", sort.est = T)+  theme_bw(base_size = 16)+ggtitle("")
+sjPlot::plot_model(fit_genus, axis.lim = c(0.8,20), vline.color = "darkgrey", sort.est = T)+  theme_bw(base_size = 16)+ggtitle("")+ylab("Hazard ratio")
 
 options(na.action = "na.fail") 
 
@@ -3556,487 +3597,3 @@ ggarrange(plots, legend_1, widths = c(0.85, 0.15))
 
 ```
 
-# Correlating yearly trends
-
-```{r}
-meerkat_merged_year<-merge_samples(meerkat_filtered,"Year", fun=mean)
-
-sample_data(meerkat_merged_year)$Year<-sample_names(meerkat_merged_year)
-
-genus_ps<-tax_glom(meerkat_merged_year, taxrank = "Genus")
-
-genus_abundances_df<-data.frame(taxa_sums(genus_ps))
-
-genus_abundances_df$ASV<-row.names(genus_abundances_df)
-
-taxonomy<-data.frame(tax_table(genus_ps))
-head(taxonomy)
-taxonomy$ASV<-row.names(taxonomy)
-
-
-genus_abundances_df<-merge(genus_abundances_df, taxonomy, by = "ASV")
-names(genus_abundances_df)[2]<-"Abundance"
-
-genus_abundances_df<-genus_abundances_df %>% arrange(-Abundance)
-
-top_genera<- genus_abundances_df$ASV[1:30]
-
-top_genus_ps<-prune_taxa(top_genera, genus_ps)
-
-sample_data(top_genus_ps)<-sample_data(top_genus_ps)[,c( "feature.id")]
-
-top_genera_melt<-psmelt(top_genus_ps)
-head(top_genera_melt)
-
-###### loop ##########
-###### loop ##########
-###### loop ##########
-###### loop ##########
-
-taxanames<-c("Bacteroides", "Fusobacterium", "Alloprevotella", "Helicobacter","Parabacteroides","Enterococcus","Collinsella", "Pediococcus", "Lactococcus","Peptoclostridium")
-
-m.avg.list<-list()
-
-for (i in 1:length(taxanames)){
-  
-  
-taxa_df<-subset(top_genera_melt, Genus == taxanames[[i]])
-#taxa_df<-subset(top_genera_melt, Genus == "Bacteroides")
-
-head(taxa_df)
-
-taxa_df<-taxa_df[,c(10,2,3)]
-
-str(taxa_df)
-names(taxa_df)[2]<-"Year"
-taxa_df$Year<-as.integer(taxa_df$Year)
-taxa_df<-taxa_df %>% arrange(Year)
-
-ggplot(taxa_df, aes(x = Year, y = log10(Abundance)))+geom_point()+geom_path()
-
-head(TB_summary_year)
-head(yearly_temp_df)
-head(yearly_rainfall_df)
-
-TB_exposed_df<-subset(TB_summary_year, TB_status == "TB exposed")
-TB_exposed_df<-TB_exposed_df[,c(1,3,5)]
-names(TB_exposed_df)[2]<-"No_exposed"
-names(TB_exposed_df)[3]<-"Prop_exposed"
-
-TB_diseased_df<-subset(TB_summary_year, TB_status == "TB diseased")
-TB_diseased_df<-TB_diseased_df[,c(1,3,5)]
-names(TB_diseased_df)[2]<-"No_diseased"
-names(TB_diseased_df)[3]<-"Prop_diseased"
-
-max_temp_df<-yearly_temp_df[,1:2]
-names(max_temp_df)[2]<-"Max_temp"
-
-rainfall_df<-yearly_rainfall_df[,1:2]
-names(rainfall_df)[2]<-"Rainfall"
-
-#put all data frames into list
-df_list <- list(taxa_df, TB_exposed_df, TB_diseased_df, max_temp_df, rainfall_df)
-
-#merge all data frames in list
-yearly_trends_df<-df_list %>% reduce(full_join, by='Year')
-
-yearly_trends_df$Exposed_and_diseased<-yearly_trends_df$Prop_diseased+yearly_trends_df$Prop_exposed
-
-
-yearly_trends_df<-subset(yearly_trends_df, Year>1998)
-
-yearly_trends_df<-yearly_trends_df %>% mutate(temp_lag = lag(Max_temp))
-yearly_trends_df<-yearly_trends_df %>% mutate(rainfall_lag = lag(Rainfall))
-yearly_trends_df<-yearly_trends_df %>% mutate(TB_lag = lag(Prop_diseased))
-
-head(yearly_trends_df)
-
-
-##########################################
-##########################################
-##########################################
-
-library(MuMIn)
-
-
-
-options(na.action = "na.fail") 
-
-yearly_trends_df<-na.omit(yearly_trends_df)
-
-#global_model<- lm(log10(Abundance+1) ~ Prop_diseased + Prop_exposed + Max_temp + Rainfall, data = yearly_trends_df)
-
-global_model<- lm(log10(Abundance+1) ~  Prop_diseased + Max_temp +Rainfall+ temp_lag + rainfall_lag, data = yearly_trends_df)
-
-dredge_df<- MuMIn::dredge(global_model, m.lim = c(0,2))
-
-head(dredge_df)
-plot(dredge_df)
-
-
-confset.95p <- get.models(dredge_df, cumsum(weight) <= .95)
-avgmod.95p <- model.avg(confset.95p)
-sum<-summary(avgmod.95p)
-ci_df<-confint(avgmod.95p)
-
-
-results<- data.frame(sum$coefmat.subset)
-
-results<-cbind(results, ci_df)
-
-names(results)[5]<-"P_val"
-names(results)[6]<-"lower"
-names(results)[7]<-"upper"
-
-results$Taxa<-taxanames[i]
-results$Variable<- row.names(results)
-
-
-m.avg.list[[i]]<-results
-
-}
-
-yearly_results<-do.call(rbind,m.avg.list)
-
-yearly_results$Sig<-yearly_results$P_val<0.01
-
-head(yearly_results)
-
-yearly_results$Taxa<-factor(yearly_results$Taxa, levels = rev(taxanames))
-
-ggplot(yearly_results, aes(y = Taxa, x = Estimate))+
-  geom_point(aes(fill = Sig), size = 3, pch = 21) + 
-  geom_errorbarh(aes(xmin = lower, xmax = upper, col = Sig), height = 0)+
-  facet_grid(~Variable, scales = "free_x")+
-  geom_vline(xintercept = 0, linetype = "dashed")+
-  ggthemes::theme_clean()+
-  scale_fill_manual(values = c("darkgrey", "red"))+
-  scale_color_manual(values = c("darkgrey", "red"))+
-  labs(fill = "Significant", col = "Significant")
-  
-
-
-
-
-yearly_results2<-subset(yearly_results, Variable =="Prop_diseased" |   Variable =="Max_temp" |Variable =="Rainfall"|Variable == "temp_lag"|Variable == "rainfall_lag")
-
-yearly_results2$Variable<-factor(yearly_results2$Variable, levels = c("Prop_diseased",  "Max_temp", "temp_lag", "Rainfall", "rainfall_lag"))
-
-levels(yearly_results2$Variable)<-c("TB disease \nprevelance", "Max temp.", "Max temp. \n(lag)", "Rainfall", "Rainfall \n(lag)")
-
-plot_s4<-ggplot(yearly_results2, aes(y = Taxa, x = Estimate))+
-  geom_point(aes(fill = Sig), size = 3, pch = 21) + 
-  geom_errorbarh(aes(xmin = lower, xmax = upper, col = Sig), height = 0)+
-  facet_grid(~Variable, scales = "free_x")+
-  geom_vline(xintercept = 0, linetype = "dashed")+
-  theme_bw()+
-  scale_fill_manual(values = c("darkgrey", "red"))+
-  scale_color_manual(values = c("darkgrey", "red"))+
-  labs(fill = "Significant", col = "Significant")+
-  ylab("Genus")
-
-
-  
-#############################
-#############################
-#############################
-#############################
-
-taxa_df<-subset(top_genera_melt, Genus == "Bacteroides")
-
-taxa_df<-taxa_df[,c(10,2,3)]
-
-names(taxa_df)[2]<-"Year"
-taxa_df$Year<-as.integer(taxa_df$Year)
-taxa_df<-taxa_df %>% arrange(Year)
-
-
-TB_diseased_df<-subset(TB_summary_year, TB_status == "TB diseased")
-TB_diseased_df<-TB_diseased_df[,c(1,3,5)]
-names(TB_diseased_df)[2]<-"No_diseased"
-names(TB_diseased_df)[3]<-"Prop_diseased"
-
-#put all data frames into list
-df_list <- list(taxa_df, TB_diseased_df)
-
-#merge all data frames in list
-bacteroides_df<-df_list %>% reduce(full_join, by='Year')
-
-
-   bacteroides_plot<- ggplot(bacteroides_df, aes(y = Prop_diseased, x = log10(Abundance)))+
-  geom_point(size = 3, pch = 21, fill = "grey") + 
- theme_bw()+
-  geom_smooth(method = "lm", col = "black")+
-     ylab("TB disease prevalence")+
-     xlab("Bacteroides count (log10)")
-  
-  ggarrange(plot_s4, bacteroides_plot, nrow = 1, widths = c(2,1), common.legend = T, legend = "bottom", labels = c("a)", "b)"))
-
-
-```
-
-# Storage effects
-
-```{r}
-pilot<- readRDS("C:\\Users\\risel\\Dropbox\\Sommer postdoc\\Meerkat project\\PROJECTS\\MeerkatSpikeInData\\Analysis updated\\1. TEMPORAL DYNAMICS ANALYSIS\\1_PUBLISHED DATASET AND CODE\\pilot_study_data_phyloseq.RDS")
-
-pilot
-
-pilot_genus<-tax_glom(pilot, taxrank = "Genus")
-pilot_class<-tax_glom(pilot, taxrank = "Class")
-
-pilot_clr <- microbiome::transform(pilot_class, "clr")
-pilot_comp <- microbiome::transform(pilot_class, "compositional")
-
-
-sample_data(pilot_comp)<-sample_data(pilot_comp)[,c("feature.id")]
-
-class_per_sample<-psmelt(pilot_comp)
-
-head(class_per_sample)
-
-top_class<-c("Bacteroidia","Fusobacteriia" ,  "Gammaproteobacteria", "Clostridia",  
-"Coriobacteriia","Actinobacteria",    "Bacilli")
-
-
-class_per_sample$Class_plot<-as.character(ifelse(class_per_sample$Class %in% top_class, class_per_sample$Class, "Other"))
-
-class_per_sample %>% group_by(Class) %>% summarize(mean = mean(Abundance)) %>% arrange(-mean)
-
-
-
-class_per_sample$Class_plot<-factor(class_per_sample$Class_plot, levels = c("Bacteroidia","Fusobacteriia" ,  "Other","Gammaproteobacteria", "Clostridia",  
-"Coriobacteriia","Actinobacteria",    "Bacilli"))
-
-head(class_per_sample)
-
-metadata<-data.frame(sample_data(pilot))
-names(metadata)
-
-metadata<-metadata[,c("feature.id", "Storage", "IndividID")]
-
-class_per_sample<- merge(class_per_sample, metadata, by = "feature.id")
-
-## microbiome plot
-
-
-pal<-brewer.pal(10,"Paired")
-pal<-c(pal, "darkgrey")
-scales::show_col(pal)
-pal<-pal[c(2,1,11,4,3,6,9,10)]
-pal<-rev(pal)
-
-
-
-P1<- ggplot(class_per_sample, aes(y = Abundance, x = reorder(Sample, Storage), fill = Class_plot))+
-  facet_grid(~IndividID, scales = "free_x")+
-  geom_col(position = "fill", stat="identity")+ 
-  scale_fill_manual(values = rev(pal))+
-  ylab("Relative abundance")+
-   scale_y_continuous(expand = c(0,0)) +
-  labs(fill = "Bacterial class")+
-   theme(plot.margin=unit(c(0.2,0.2,0.2,1),"cm"))+
-  theme(legend.justification = c("left", "center"))+
-    theme(axis.text.x = element_text(angle =45,   hjust=1), axis.title.x = element_blank())+
-  scale_x_discrete( labels = unique(class_per_sample$Storage))
-
-
-P2<-ggplot(subset(class_per_sample, Class_plot != "Other"), aes(y = Abundance, x = Storage, fill = Class_plot, group = Storage))+
-  facet_wrap(~Class_plot, scales = "free", ncol = 8)+
-  geom_boxplot()+ 
-  scale_fill_manual(values = rev(pal)[-3])+
-  ylab("Relative abundance")+
-  theme(axis.text.x = element_text(angle =45,  hjust=1), axis.title.x = element_blank())+
- #  scale_y_continuous(expand = c(0,0)) +
-  labs(fill = "Bacterial class")+
-   theme(plot.margin=unit(c(0.2,0.2,0.2,1),"cm"))+
-  theme(legend.justification = c("left", "center"))
-
-ggarrange(P1, P2, ncol = 1, common.legend = T, legend = "right", labels = c("a)", "b)"))
-
-
-### beta diversity
-
-pilot_rare<-rarefy_even_depth(pilot, sample.size = 10000)
-head(sample_data(pilot_rare))
-
-## beta 
-
-pilot.ord <- ordinate(pilot_rare, "NMDS", "wunifrac")
-pilot.dist <- distance(pilot_rare, "wunifrac")
-
-
-beta_plot<-plot_ordination(pilot_rare, pilot.ord, type="sample", color="Storage")+
-  geom_line(aes(group = IndividID), col = "black")+
-  geom_point(aes(fill = Storage), size = 4, pch = 21, col = "black")+
-  scale_fill_manual(values  = c("skyblue", "red"))
-  
-
-metadata<- data.frame(sample_data(pilot_rare))
-
-adonis(pilot.dist~Storage + IndividID, data = metadata )
-
-#alpha
-
-
-alpha_df<-estimate_richness(pilot_rare)
-
-summary(alpha_df$Observed)
-alpha_df$feature.id<-row.names(alpha_df)
-metadata<-merge(metadata, alpha_df, by = "feature.id")
-
-alpha_plot<-ggplot(metadata, aes(x = Storage, y = Shannon, fill = Storage))+
-  geom_boxplot(alpha = 0.5)+
-  geom_point( pch = 21, size = 3)+
-   scale_fill_manual(values  = c("skyblue", "red"))+
-  geom_line(aes(group = IndividID))
-
-left_panel<-ggarrange(P1, P2, ncol = 1, common.legend = T, legend = "bottom", labels = c("a)", "b)"))
-
-right_panel<-ggarrange(alpha_plot, beta_plot, ncol = 1, common.legend = T, legend = "bottom", labels = c("c)", "d)"))
-
-ggarrange(left_panel, right_panel, widths = c(2,1), align = "h")
-
-
-```
-
-######## clr
-
-######## clr
-
-######## clr
-
-######## clr
-
-```{r}
-
-sample_data(pilot_clr)<-sample_data(pilot_clr)[,c("feature.id")]
-
-class_per_sample<-psmelt(pilot_clr)
-
-head(class_per_sample)
-
-top_class<-c("Bacteroidia","Fusobacteriia" ,  "Gammaproteobacteria", "Clostridia",  
-"Coriobacteriia","Actinobacteria",    "Bacilli")
-
-
-class_per_sample$Class_plot<-as.character(ifelse(class_per_sample$Class %in% top_class, class_per_sample$Class, "Other"))
-
-class_per_sample %>% group_by(Class) %>% summarize(mean = mean(Abundance)) %>% arrange(-mean)
-
-
-
-class_per_sample$Class_plot<-factor(class_per_sample$Class_plot, levels = c("Bacteroidia","Fusobacteriia" ,  "Other","Gammaproteobacteria", "Clostridia",  
-"Coriobacteriia","Actinobacteria",    "Bacilli"))
-
-head(class_per_sample)
-
-metadata<-data.frame(sample_data(pilot))
-names(metadata)
-
-metadata<-metadata[,c("feature.id", "Storage", "IndividID")]
-
-class_per_sample<- merge(class_per_sample, metadata, by = "feature.id")
-
-
-
-
-ggplot(subset(class_per_sample, Class_plot != "Other"), aes(y = Abundance, x = Storage, fill = Class_plot, group = Storage))+
-  facet_wrap(~Class_plot, scales = "free", ncol = 8)+
-  geom_boxplot()+ 
-  scale_fill_manual(values = rev(pal)[-3])+
-  ylab("Relative abundance")+
-  theme(axis.text.x = element_text(angle =90))+
- #  scale_y_continuous(expand = c(0,0)) +
-  labs(fill = "Bacterial class")+
-   theme(plot.margin=unit(c(0.2,0.2,0.2,1),"cm"))+
-  theme(legend.justification = c("left", "center"))
-
-```
-
-# Beta diversity
-
-```{r}
-pilot_rare<-rarefy_even_depth(pilot, sample.size = 10000)
-head(sample_data(pilot_rare))
-
-pilot.ord <- ordinate(pilot_rare, "MDS", "wunifrac")
-pilot.dist <- distance(pilot_rare, "bray")
-
-plot_ordination(pilot_rare, pilot.ord, type="sample", color="Storage", title="taxa")+
-  geom_line(aes(group = IndividID), col = "black")+
-  geom_point(size = 4)
-metdata<- data.frame(sample_data(pilot_rare))
-
-adonis(pilot.dist~Storage + IndividID, data = metadata )
-
-```
-
-```{r}
-
-plot_mb_year
-
-captive_meerkats<-ggplot(subset(class_per_sample, Storage == "FROZEN"), aes(y = Abundance, x = Sample, fill = Class_plot))+
-  #facet_grid(~IndividID, scales = "free_x")+
-  geom_col(position = "fill", stat="identity")+ 
-  scale_fill_manual(values = rev(pal))+
-  ylab("Relative abundance")+
-   scale_y_continuous(expand = c(0,0)) +
-  labs(fill = "Bacterial class")+
-   theme(plot.margin=unit(c(1,0.2,0.2,0),"cm"))+
-  theme(legend.justification = c("left", "center"))+
-  theme(axis.title.x = element_blank(), axis.text.x = element_text(angle = 90))+
-  theme(axis.title.y = element_blank(), axis.text.y = element_blank())
-
-barplots<-ggarrange(plot_mb_year, captive_meerkats, ncol = 2, widths = c(2.2,0.8), common.legend = T, legend = F, align = "h", labels = c("    a) Wild", "b) Captive"), hjust = -0.1)
-
-ord_plot2<-ord_plot+ theme(plot.margin=unit(c(1,0.2,0.5,0),"cm"))
-
-ggarrange(barplots, ord_plot2, ncol = 2 , common.legend = T, legend = "right", widths = c(1,1.5), labels = c(NA, "c)"))
-
-
-```
-
-# Human and captivity effects
-
-```{r}
-
-allsamples_ps<-readRDS("phyloseq_May22_allsamples.RDS")
-
-allsamples_ps
-
-head(sample_data(allsamples_ps))
-table(sample_data(allsamples_ps)$Species)
-allsamples_ps<-subset_samples(allsamples_ps, Species == "Meerkat")
-
-allsamples_core<-core(allsamples_ps, detection = 100, prevalence = 0)
-
-
-#all_samples.ord <- ordinate(allsamples_core, "MDS", "wunifrac")
-all_samples <- distance(allsamples_core, "wunifrac")
-
-names(sample_data(allsamples_core))
-
-
-plot_ordination(allsamples_core, all_samples.ord, type="sample", color="Species")+
-  #geom_line(aes(group = IndividID), col = "black")+
-  geom_point(aes(fill = Species, shape = Captive), size = 2,  col = "black")+
-  scale_shape_manual(values = c(21,8, 22))
-
-
-# bray curtis
-
-
-all_samples_bray.ord <- ordinate(allsamples_core, "NMDS", "bray")
-#all_samples <- distance(allsamples_core, "wunifrac")
-
-names(sample_data(allsamples_core))
-
-
-plot_ordination(allsamples_core, all_samples_bray.ord, type="sample", color="Species")+
-  #geom_line(aes(group = IndividID), col = "black")+
-  geom_point(aes(fill = Captive), size = 2,  col = "black", pch = 21)
-
-
-
-```
