@@ -1,0 +1,1893 @@
+---
+title: "Rmarkdown: Climate change drives loss of bacterial gut mutualists at expense of host survival in wild meerkats"
+author: "Alice Risely"
+date: "16/09/2022"
+output:
+  html_document:
+    toc: yes
+    toc_depth: 3
+    number_sections: true
+    toc_float:
+      collapsed: false
+    theme: journal
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, fig.height = 5, fig.width =10, time_it = TRUE, error = TRUE)
+```
+
+```{r echo = F}
+knitr::knit_hooks$set(time_it = local({
+  now <- NULL
+  function(before, options) {
+    if (before) {
+      # record the current time before each chunk
+      now <<- Sys.time()
+    } else {
+      # calculate the time difference after a chunk
+      res <- difftime(Sys.time(), now, units = "mins")
+      # return a character string to show the time
+     paste("This chunk took", round(res, 2), "minutes")
+    }
+  }
+}))
+
+```
+
+## Load packages
+
+```{r chunk2, load packages}
+
+library(phyloseq)
+library(ggord)
+library(ggplot2)
+library(viridis)
+library(mgcViz)
+library(dichromat)
+library(ggpattern)
+library(expss)
+library(dplyr)
+library(tidyverse)
+library(GGally)
+library(vegan)
+library(ggpubr)
+library(pheatmap)
+library(lubridate)
+library(ggsci)
+library(RColorBrewer)
+library(microbiome)
+library(vegan)
+library(lme4)
+library(performance)
+library(ggrepel)
+library(zoo)
+
+library(glmmTMB)
+library(mgcv)
+library(gratia)
+library(speedyseq)
+library(ggeffects)
+library(MuMIn)
+library(effects)
+library(broom)
+library(cowplot)
+library(patchwork)
+
+library("coxme")
+library(survival)
+
+library(SpiecEasi)
+library(NetCoMi)
+
+library(gllvm)
+library(data.table)
+library(datawizard)
+library(ggcorrplot)
+library(ggthemes)
+
+memory.limit(1000000)
+
+```
+
+# Data Import
+
+```{r}
+
+meerkat_final<-readRDS("C:\\Users\\risel\\Dropbox\\Sommer postdoc\\Meerkat project\\PROJECTS\\MeerkatSpikeInData\\Analysis updated\\6. TB AND MB POPULATION LEVEL\\Published data and code\\V2\\meerkat_MB_GCB.RDS")
+
+daily_rainfall_merged <- read.csv("C:/Users/risel/Dropbox/Sommer postdoc/Meerkat project/PROJECTS/MeerkatSpikeInData/Analysis updated/6. TB AND MB POPULATION LEVEL/Published data and code/V2/rainfall_data.csv", row.names=1)
+
+daily_temp_merged <- read.csv("C:/Users/risel/Dropbox/Sommer postdoc/Meerkat project/PROJECTS/MeerkatSpikeInData/Analysis updated/6. TB AND MB POPULATION LEVEL/Published data and code/V2/maxtemp_data.csv", row.names=1)
+
+
+TB_stage_df<- read.csv("C:/Users/risel/Dropbox/Sommer postdoc/Meerkat project/PROJECTS/MeerkatSpikeInData/Analysis updated/6. TB AND MB POPULATION LEVEL/Published data and code/V2/TB_data.csv", row.names=1)
+
+daily_rainfall_merged$Date<-as.Date(daily_rainfall_merged$Date, "%Y-%m-%d")
+daily_temp_merged$Date<-as.Date(daily_temp_merged$Date, "%Y-%m-%d")
+TB_stage_df$Date<-as.Date(TB_stage_df$Date, "%Y-%m-%d")
+
+```
+
+# Count normalisation
+* Scale counts by spike in
+
+```{r}
+
+asv_table<-data.frame(meerkat_final@otu_table@.Data)
+asv_table[1:5,1:5]
+names(asv_table)<-sample_data(meerkat_final)$feature.id
+meerkat_normalized<-sweep(asv_table, MARGIN=2, sample_data(meerkat_final)$scaling_factor, `*`)
+meerkat_normalized<-round(meerkat_normalized, digits = 0)
+meerkat_normalized<-otu_table(meerkat_normalized, taxa_are_rows = TRUE)
+meerkat_scaled<-meerkat_final
+otu_table(meerkat_scaled)<-meerkat_normalized
+
+
+### add total abundance of reads to dataframe
+sample_data(meerkat_scaled)$TotalAbundance<-sample_sums(meerkat_scaled)
+
+#Filter samples
+
+#meerkat_filtered<-subset_samples(meerkat_scaled, Seq_depth_nospikein >3000)
+meerkat_filtered<-subset_samples(meerkat_scaled, sample_sums(meerkat_scaled)>1000)
+
+
+```
+
+# Fig. 1: Population and sample trends
+
+```{r chunk7,  fig.width = 15, fig.height = 7}
+
+### left panel ###
+
+p1<-ggplot(subset(daily_rainfall_merged, Date > "1996-01-01"), aes(x = Date, y = RollMean12Month_NOAA))+
+  geom_point(size =0.1, aes(col = Col))+
+  #geom_path(size =0.1)+
+  geom_hline(yintercept = mean(daily_rainfall_merged$RollMean12Month_NOAA, na.rm = T), linetype = "longdash")+
+ # ggtitle("VZ/KRC data")+
+  theme_classic(base_size = 12)+
+  ylab("Rainfall (mm)")+
+  theme(legend.position = "none")+
+  xlim(c(as.Date("1997-01-01"), as.Date("2020-01-01")))+
+  theme(panel.grid.major.x = element_line(color = "grey",size = 0.5, linetype = 2))+
+ theme(axis.title.x = element_blank())+
+  scale_color_manual(values = c("dodgerblue3", "red"))+
+  ggtitle("b)")+
+  theme(plot.title = element_text( face = "bold", size = 13))
+
+
+
+p2<-ggplot(subset(daily_temp_merged, Date > "1996-01-01"), aes(x = Date, y = RollMean12Month_curated))+
+  geom_point(size =0.1, aes(col = Col))+
+#  geom_path(size =0.1)+
+  geom_hline(yintercept = mean(daily_temp_merged$RollMean12Month_curated, na.rm = T), linetype = "longdash")+
+ # ggtitle("VZ/KRC data")+
+  ylab("Max. temp. (°C)")+
+  theme_classic(base_size = 12)+
+  theme(legend.position = "none")+
+  xlim(c(as.Date("1997-01-01"), as.Date("2020-01-01")))+
+  theme(panel.grid.major.x = element_line(color = "grey",size = 0.5, linetype = 2))+
+  theme(axis.title.x = element_blank())+
+  scale_color_manual(values = c( "red", "dodgerblue3"))+
+  ggtitle("a)")+
+  theme(plot.title = element_text( face = "bold", size = 13))
+
+p3<-ggplot(TB_stage_df, aes(x = Date, y = Proportion, col = TB_status))+
+  geom_point(size = 0.1)+
+  geom_path(size = 1)+
+  scale_color_manual(values = c("forestgreen", "skyblue","brown2"))+
+  theme_classic(base_size = 12)+
+  ylab("Proportion population")+
+ xlim(c(as.Date("1997-01-01"), as.Date("2020-01-01")))+
+  theme(panel.grid.major.x = element_line(color = "grey",size = 0.5, linetype = 2))+
+  theme(legend.position = c(0.17,0.5), 
+        legend.key.size = unit(0.05, "cm"),
+        legend.key.width = unit(0.1, "cm"),
+        legend.title = element_text(size = 10) )+
+  labs(col = "TB status")+
+  ggtitle("c)")+
+  theme(plot.title = element_text( face = "bold", size = 13))
+
+
+
+Fig1_left<-p2/p1/p3
+
+## right panel ###
+## right panel ###
+
+
+meerkat_class<-tax_glom(meerkat_filtered, taxrank = "Class")
+
+sample_data(meerkat_class)<-sample_data(meerkat_class)[,c("feature.id")]
+meerkat_class<-microbiome::transform(meerkat_class, "compositional") 
+class_per_sample<-psmelt(meerkat_class)
+
+top_class<-c("Bacteroidia","Fusobacteriia" ,  "Gammaproteobacteria", "Clostridia",  
+"Coriobacteriia","Actinobacteria",    "Bacilli")
+
+
+class_per_sample$Class_plot<-as.character(ifelse(class_per_sample$Class %in% top_class, class_per_sample$Class, "Other"))
+
+class_per_sample$Class_plot<-factor(class_per_sample$Class_plot, levels = c("Bacteroidia","Fusobacteriia" ,  "Other","Gammaproteobacteria", "Clostridia",  
+"Coriobacteriia","Actinobacteria",    "Bacilli"))
+
+
+metadata<-data.frame(sample_data(meerkat_filtered))
+
+metadata<-metadata[,c("feature.id", "SampleDate", "Year", "Storage", "HoursAfterSunrise", "TotalAbundance", "TB_stage", "Season", "Mean_maxtemp_3month",  "Mean_maxtemp_12month","Mean_rainfall_12month_NOAA", "Mean_rainfall_3month_NOAA", "Condition_weight", "GroupAtSampling", "AgeAtSampling")]
+
+class_per_sample<- merge(class_per_sample, metadata, by = "feature.id")
+
+## microbiome plot ######
+## microbiome plot ######
+
+
+pal<-brewer.pal(10,"Paired")
+pal<-c(pal, "lightgrey")
+pal<-pal[c(2,1,11,4,3,6,9,10)]
+pal<-rev(pal)
+
+
+plot_per_sample<-ggplot(class_per_sample, aes(y = Abundance, x = reorder(Sample, SampleDate), fill = Class_plot))+
+  geom_col(position = "fill", stat="identity",  col = NA, width = 2)+ 
+  scale_fill_manual(values = rev(pal))+
+  ylab("Relative abundance")+
+  theme(axis.text.x = element_blank(), axis.ticks = element_blank(), axis.title.x = element_blank())+
+   scale_y_continuous(expand = c(0,0)) +
+  labs(fill = "Bacterial class")+
+   theme(plot.margin=unit(c(0.2,0.2,0.2,1),"cm"))+
+  theme(legend.justification = c("left", "center"))
+
+
+
+#### temp max ###
+#### temp max ###
+
+pal_dichromat<-dichromat::colorschemes$BluetoOrange.12
+
+pal_dichromat[12]<-"black"
+pal_dichromat[11]<-"red"
+
+
+plot_temp1<-ggplot(class_per_sample, aes(y = 1, x = reorder(Sample, SampleDate), fill = Mean_maxtemp_12month))+geom_tile()+
+  theme_void()+
+ scale_fill_gradientn(colours = pal_dichromat)+
+  theme(legend.position="right", legend.direction="vertical", 
+         legend.justification = c("left", "top"),
+        legend.key.height = unit(0.15, 'cm'),
+        legend.title=element_blank(), legend.text=element_text(size=6)) +
+  theme(axis.title.y = element_text(angle = 0))+
+  ylab(" Max \ntemp")
+ 
+### rainfall ######
+### rainfall ######
+
+
+plot_rainfall2<-ggplot(class_per_sample, aes(y = 1, x = reorder(Sample, SampleDate), fill = Mean_rainfall_12month_NOAA))+geom_tile()+
+  theme_void()+
+ scale_fill_gradientn(colours = rev(pal_dichromat[1:12]))+
+   theme(legend.position="right", legend.direction="vertical", 
+        legend.justification = c("left", "top"),
+        legend.key.height = unit(0.15, 'cm'),
+        legend.title=element_blank(), legend.text=element_text(size=6))+
+   theme(axis.title.y = element_text(angle = 0))+
+  ylab("Rainfall")
+
+
+## TB stage ###
+## TB stage ###
+
+
+levels(class_per_sample$TB_stage)
+levels(class_per_sample$TB_stage)<-c("TB unexposed", "TB exposed", "TB diseased")
+#levels(class_per_sample$TB_stage_weight)<-c("TB unexposed", "TB exposed", "TB diseased")
+
+table(class_per_sample$TB_stage)
+
+plot_TB_sample<-ggplot(class_per_sample, aes(y = 1, x = reorder(Sample, SampleDate), fill = TB_stage))+
+  geom_tile()+
+  theme_void()+
+scale_fill_manual(values = c( "forestgreen", "skyblue","brown2"))+ 
+  theme(axis.title.y = element_text(angle = 0))+
+  ylab("TB")+
+  theme(legend.position="right", legend.direction="vertical", 
+       legend.justification = c("left", "top"),
+        legend.key.height = unit(0.3, 'cm'),
+        legend.title=element_blank())
+
+
+
+## season ###
+## season ###
+
+plot_season<-ggplot(class_per_sample, aes(y = 1, x = reorder(Sample, SampleDate), fill = Season))+
+  geom_tile()+
+  theme_void()+
+  scale_fill_manual(values = c("gold", "forestgreen"))+
+  theme(legend.position="right", legend.direction="vertical", 
+        legend.justification = c("left", "top"),
+        legend.key.height = unit(0.1, 'cm'),
+        legend.title=element_blank())+
+   theme(axis.title.y = element_text(angle = 0))+
+  ylab("Season")
+
+
+# year labels ###
+# year labels ###
+
+year_names <- c(
+                    `1997` = "",
+                    `1998` = "",
+                    `1999` = "1999",
+                    `2000` = "",
+                    `2001` = "2001",
+                    `2002` = "2002",
+                    `2003` = "2003",
+                    `2004` = "2004",
+                    `2005` = "2005",
+                    `2006` = "2006",
+                    `2007` = "2007",
+                    `2008` = "2008",
+                    `2009` = "2009",
+                    `2010` = "2010",
+                    `2011` = "2011",
+                    `2012` = "2012",
+                    `2013` = "2013",
+                    `2014` = "2014",
+                    `2015` = "2015",
+                    `2016` = "2016",
+                    `2017` = "2017",
+                    `2018` = "2018",
+                    `2019` = "")
+
+##### year ######
+##### year ######
+##### year ######
+
+plot_year<-ggplot(class_per_sample, aes(y = 1, x = reorder(Sample, SampleDate)))+
+  geom_tile(fill = "skyblue")+
+  theme_void()+
+ # scale_fill_viridis(discrete = F)+ 
+  #scale_fill_manual(values = c("red", "skyblue"))+
+  facet_grid(~Year, scales = "free", space = "free_x",switch = "x", labeller = as_labeller(year_names))+
+
+  theme(panel.spacing = unit(0.07, "lines"), 
+         strip.background = element_blank(),
+         strip.placement = "outside",
+         strip.text.x = element_text(angle = 90, hjust = 0.5)) +
+  
+   xlab("")+
+    theme(axis.title.y = element_text(angle = 0, hjust = ))+
+  ylab("Year          ")+
+  theme(axis.title.x = element_text(colour = "black"))+
+  theme(plot.margin=unit(c(0,4.95,0.2,1.25),"cm")) +
+    theme(legend.position="right", legend.direction="vertical", 
+        legend.justification = c("left", "top"),
+        legend.key.height = unit(0.2, 'cm'),
+        legend.title=element_blank())
+
+## put it all together
+
+
+sup_figabc<-ggarrange(plot_per_sample, plot_temp1,plot_rainfall2, plot_TB_sample,  plot_season, 
+                      ncol = 1, align = "v", heights = c(10,1,1, 1,  1),
+                      labels= c("d)", "e)", "f)", "g)", "h)"),  
+                      font.label = list(size = 13))
+
+Fig1_right<-ggarrange(sup_figabc, plot_year, ncol = 1, heights = c(7,1.1), 
+                      labels = c(NA, "i)"), font.label = list(size = 13))
+
+
+
+# fig 1
+ggarrange(Fig1_left, Fig1_right, ncol = 2, widths = c(1,1.8))
+
+
+
+```
+
+# Fig 2: Constrained ordination
+
+-   Constrained ordination using CAP
+-   Also test all supertypes
+
+```{r chunk16}
+
+
+scaled_core<-microbiome::core(meerkat_filtered, detection = 100, prevalence = 0.01)
+#scaled_core <-microbiome::transform(scaled_core, transform = "clr")
+
+
+```
+
+-   Generate distance matrices
+
+```{r chunk18}
+###### genus level 
+
+wunifrac_dist<-distance(scaled_core, method = "wunifrac")
+
+
+```
+
+
+-   organise variables
+
+```{r chunk17}
+
+
+otutable<-data.frame(t(scaled_core@otu_table@.Data))
+dim(otutable)
+otutable[1:5,1:5]
+colnames(otutable)<-taxa_names(scaled_core)
+
+metadata<-data.frame(sample_data(scaled_core))
+
+time<-metadata$TimeCat
+year<-metadata$Year
+
+# methods
+storage<-metadata$Storage
+seq_depth<-as.numeric(scale(metadata$Seq_depth_nospikein))
+seq_run<-metadata$Seq_run
+
+
+```
+
+* Apply constrained ordination models (dbRDA)
+
+```{r chunk19}
+
+
+# weighted unifrac
+
+wu_model<-capscale(wunifrac_dist ~ time+
+                             year + storage, 
+                env = metadata, comm = otutable) 
+
+
+final_model_anova<-anova.cca(wu_model, by="terms")
+final_model_anova
+
+
+
+```
+
+
+* Oridination figure
+
+```{r chunk21}
+
+######################################
+
+## extract data from model
+
+wu_model_df<-scores(wu_model)
+str(wu_model_df)
+
+
+# extract CAP scores
+
+vectors_df<-data.frame(wu_model_df$sites)
+
+vectors_df$feature.id<-row.names(vectors_df)
+
+cap_values_df<-vectors_df
+
+# merge with info on dominant family
+
+sample_metadata<-data.frame(sample_data(scaled_core))
+vectors_df<-merge(vectors_df, sample_metadata, by = "feature.id")
+
+sample_data(meerkat_filtered)[1:5,1]
+sample_data(meerkat_final)[1:5,1]
+cap_values_df[1:5,]
+sample_data(meerkat_filtered)[20:25,1]
+sample_data(meerkat_final)[20:25,1]
+cap_values_df[20:25,]
+
+
+sample_data(meerkat_filtered)$CAP1<-cap_values_df$CAP1
+sample_data(meerkat_filtered)$CAP2<-cap_values_df$CAP2
+
+#########################
+
+p_beta1<-ggplot(vectors_df, aes(x = CAP1, y = CAP2))+
+  stat_ellipse(geom = "polygon", aes(fill = YearCat, col = YearCat), level = 0.9, alpha = 0.2, size = 0.5)+
+  geom_point(aes(fill =YearCat), pch = 21, size = 1.5, col = "black")+
+  theme_classic(base_size = 12)+
+   scale_fill_viridis(discrete = TRUE, direction = -1)+scale_color_viridis(discrete = TRUE, direction = -1)+
+  labs(fill = "Period", col = "Period")+
+ geom_point(data = subset(vectors_df, YearCat == "Pre-2005"), pch = 21, size = 1.5, col = "black", fill = "yellow")+
+  theme(legend.position = c(0.85,0.9))+
+  theme(legend.key.size = unit(0.2, "cm"),
+        legend.title = element_blank())
+
+
+vectors_df$TimeCat<-ifelse(vectors_df$TimeCat == "MORNING", "Morning", "Afternoon")
+vectors_df$TimeCat<-factor(vectors_df$TimeCat, levels = c("Morning", "Afternoon"))
+
+p_beta3<-ggplot(vectors_df, aes(x = CAP1, y = CAP2))+
+  stat_ellipse(geom = "polygon", aes(fill = TimeCat, col = TimeCat), level = 0.9, alpha = 0.2, size = 0.5)+
+  geom_point(aes(fill =TimeCat), pch = 21, size = 1.5,  col = "black")+
+  theme_classic(base_size = 12)+
+   scale_fill_manual(values = c("skyblue", "red"))+
+   scale_color_manual(values = c( "skyblue", "red"))+
+  labs(fill = "Time", col = "Time")+
+  theme(legend.position = c(0.9,0.9))+
+  theme(legend.key.size = unit(0.2, "cm"),
+        legend.title = element_blank())
+
+
+
+p_beta2<-ggplot(vectors_df, aes(x = YearCat, y = CAP2, fill = YearCat, col = YearCat))+
+  geom_jitter(alpha =0.4, width = 0.2,  pch = 21, size = 0.5)+
+  geom_boxplot( pch = 21, size = 0.5, col = "black")+
+   scale_fill_viridis(discrete = TRUE, direction = -1)+
+ scale_color_viridis(discrete = TRUE, direction = -1)+
+  theme_classic(base_size = 12)+
+  labs(fill = "Period", col = "Period")+
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))+
+  theme(axis.title.x = element_blank())+
+theme(legend.position = "none")
+
+
+# model CAP2 scores 
+
+beta_model<-lmer(CAP2~YearCat +(1|IndividID), data = vectors_df) #gaussian
+
+summary(beta_model)
+sjPlot::tab_model(beta_model)
+
+# ICC value 
+icc(beta_model)
+
+
+```
+
+
+* Microbiome composition by year barplot
+
+```{r chunk15}
+
+
+meerkat_merged_year<-merge_samples(meerkat_filtered,"Year", fun=mean)
+
+sample_data(meerkat_merged_year)$Year<-sample_names(meerkat_merged_year)
+
+meerkat_merged_year_class<-tax_glom(meerkat_merged_year, taxrank = "Class")
+
+sample_data(meerkat_merged_year_class)<-sample_data(meerkat_merged_year_class)[,1]
+
+class_per_year<-psmelt(meerkat_merged_year_class)
+
+
+class_per_year$Class_plot<-as.character(ifelse(class_per_year$Class %in% top_class, class_per_year$Class, "Other"))
+
+class_per_year$Class_plot<-factor(class_per_year$Class_plot, levels = c("Bacteroidia","Fusobacteriia" ,  "Other","Gammaproteobacteria", "Clostridia",  
+"Coriobacteriia","Actinobacteria",    "Bacilli"))
+
+class_per_year$Sample<- as.integer(class_per_year$Sample)
+
+class_per_year<-class_per_year%>% group_by(Sample, Class_plot)%>%summarize(Abundance = sum(Abundance))
+class_per_year<-data.frame(class_per_year)
+class_per_year$Sample<-factor(class_per_year$Sample)
+
+plot_mb_year<-ggplot(class_per_year, aes(x =Sample, y = Abundance, fill = Class_plot))+
+  geom_bar( stat="identity",  size = 0, position = "fill")+ 
+   theme_classic(base_size = 12)+
+  scale_fill_manual(values = rev(pal))+
+  theme(legend.position = "right")+
+  xlab("")+ 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.9, hjust=1))+
+     theme(axis.text.y = element_text(size=8))+
+  labs(fill = "Bacterial class")+
+   scale_y_continuous(expand = c(0,0))+
+  xlab("Year")+
+  theme(legend.text = element_text(size=8),
+  legend.title = element_text(size=10))+
+  theme(legend.key.height = unit(0.3,'cm'))+
+  theme(legend.key.width = unit(0.3,'cm'))+
+  theme(axis.text.x = element_text(size = 8))+
+  theme(plot.margin=unit(c(0,0.2,0.2,0.2),"cm"))
+
+##############
+##############
+##############
+
+year_freq<-data.frame(table(sample_data(meerkat_filtered)$Year))
+names(year_freq)[1]<-"Year"
+
+year_freq$Year<-as.numeric(as.character(year_freq$Year))
+
+year_freq<-year_freq %>% mutate(YearCat = case_when((Year <2005 ~ "Pre-2005"),
+                                                  (Year >=2005 & Year < 2010) ~ "2005-2010",
+                                                  (Year >=2010 & Year < 2015) ~ "2010-2015",
+                                                  (Year >=2015) ~ "2015-2019"))
+
+year_freq$YearCat<-factor(year_freq$YearCat, levels = c("Pre-2005", "2005-2010", "2010-2015", "2015-2019"))
+
+
+year_freq$Year<-factor(year_freq$Year)
+
+#######
+#######
+#######
+
+
+year_hist<-ggplot(year_freq, aes(x = Year, y = Freq, fill = YearCat)) + 
+   geom_bar( stat = "identity", size = 0)+ 
+# theme(plot.margin=unit(c(0.2,5,0.2,0.2),"cm"))+
+  theme(axis.text.x = element_blank(), axis.title.x = element_blank())+
+  theme(legend.position = "right")+
+  scale_y_sqrt(breaks = c(0,20,50,100,200))+
+ # geom_hline(yintercept = 20, col = "black", linetype = "longdash")+
+     scale_fill_viridis(discrete = TRUE, direction = -1)+
+ scale_color_viridis(discrete = TRUE, direction = -1)+
+    theme(legend.key.height = unit(0.1, 'cm'),
+          legend.title = element_blank())+
+   theme(legend.text = element_text(size=8))+
+   theme(axis.text.y = element_text(size=6))+
+  theme(plot.margin=unit(c(0.2,0.2,0,0.2),"cm"))
+
+year_plot<-ggarrange(year_hist, plot_mb_year, ncol = 1, align = "v", heights = c(1,4))+theme(plot.margin=unit(c(0.2,0.2,0.2,0.4),"cm"))
+
+
+```
+
+* Ordination by individual ID
+
+```{r, fig.width = 10, fig.height = 6, }
+
+meerkat_merged_ID<-merge_samples(meerkat_filtered,"IndividID", fun=mean)
+sample_data(meerkat_merged_ID)$IndividID<-sample_names(meerkat_merged_ID)
+sample_data(meerkat_merged_ID)<-sample_data(meerkat_merged_ID)[,2]
+
+scaled_core_id<-microbiome::core(meerkat_merged_ID, detection = 100, prevalence = 0.01)
+
+wunifrac_dist_id<-distance(scaled_core_id, method = "wunifrac")
+
+############
+
+otutable<-data.frame(scaled_core_id@otu_table@.Data)
+dim(otutable)
+otutable[1:5,1:5]
+colnames(otutable)<-taxa_names(scaled_core_id)
+
+metadata<-data.frame(sample_data(scaled_core_id))
+metadata_original<- data.frame(sample_data(meerkat_filtered))
+metadata$BirthDate<-vlookup(metadata$IndividID, metadata_original, lookup_column = "IndividID", result_column = "BirthDate")
+metadata$BirthYear<-lubridate::year(metadata$BirthDate)
+
+metadata<-metadata%>% mutate(YearCat = case_when((BirthYear <2005 ~ "Pre-2005"),
+                                                  (BirthYear >=2005 & BirthYear < 2010) ~ "2005-2010",
+                                                  (BirthYear >=2010 & BirthYear < 2015) ~ "2010-2015",
+                                                  (BirthYear >=2015) ~ "2015-2019"))
+
+metadata$YearCat<-factor(metadata$YearCat, levels = c("Pre-2005", "2005-2010", "2010-2015", "2015-2019"))
+
+
+# year
+
+
+YearCat<-as.character(metadata$YearCat)
+year<-metadata$BirthYear
+table(metadata$YearCat)
+
+id_model<-capscale(wunifrac_dist_id ~ 
+                             year, 
+                env = metadata, comm = otutable) 
+
+## extract data from model
+
+final_model_df<-scores(id_model)
+
+# extract CAP scores
+
+vectors_df_id<-data.frame(final_model_df$sites)
+
+vectors_df_id$feature.id<-row.names(vectors_df_id)
+
+# merge with info on dominant family
+
+vectors_df_id<-merge(vectors_df_id, metadata, by.x = "feature.id", by.y = "IndividID")
+
+############
+############
+############
+
+
+#########################
+
+
+
+beta_id<-ggplot(vectors_df_id, aes(x = YearCat, y = CAP1, fill = YearCat, col = YearCat))+
+  geom_jitter(alpha =0.4, width = 0.2,  pch = 21, size = 0.5)+
+  geom_boxplot( pch = 21, size = 0.5, col = "black")+
+   scale_fill_viridis(discrete = TRUE, direction = -1)+
+ scale_color_viridis(discrete = TRUE, direction = -1)+
+  theme_classic(base_size = 12)+
+  labs(fill = "Period", col = "Period")+
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))+
+  theme(axis.title.x = element_blank())+
+theme(legend.position = "none")
+
+
+
+p1<-ggarrange(year_plot, p_beta1, ncol = 2,  labels = c("a)", "b)"))
+p2<-ggarrange(p_beta3, p_beta2, beta_id, ncol = 3,  widths = c(2,1,1), labels = c("c)", "d)", "e)"))
+
+ggarrange(p1, p2, nrow = 2)
+
+
+```
+
+
+# Fig. 3: GAMs and non-linear trends
+
+```{r chunk22}
+
+
+meerkat_genus<-microbiome::aggregate_top_taxa(meerkat_filtered, "Genus", top = 50)
+clr_scaled <-microbiome::transform(meerkat_genus, transform = "clr")
+
+
+taxa_to_keep <- c("[Ruminococcus] torques group" , "Arthrobacter", "Bacillus","Bacteroides",
+ "Blautia", "Catenisphaera" ,"Christensenellaceae R-7 group", "Clostridium sensu stricto 1",
+"Collinsella" ,"Enterococcus" , "Escherichia-Shigella","Fusobacterium",
+"Geodermatophilus","Lachnoclostridium", "Lactococcus" ,"Marvinbryantia" ,
+"Paeniclostridium","Peptoclostridium" , "Peptococcus" ,"Phascolarctobacterium",
+"Romboutsia", "Slackia" ,"Turicibacter" , "Weissella" , 
+"Rikenellaceae RC9 gut group", "Helicobacter" , "Parabacteroides", "Lactobacillus",
+ "Pediococcus", "Streptococcus" )
+
+#meerkat_genus<-microbiome::aggregate_top_taxa(meerkat_filtered, "Genus", top = 50)
+
+#meerkat_genus_scaled<-prune_taxa(taxa_to_keep, meerkat_genus)
+meerkat_genus_scaled<-prune_taxa(taxa_to_keep,clr_scaled) # new
+
+genus_ps<-meerkat_genus_scaled
+sample_data(genus_ps)<-sample_data(genus_ps)[,c( "feature.id")]
+
+top_genera_melt<-psmelt(genus_ps)
+head(top_genera_melt)
+
+metadata<-data.frame(sample_data(meerkat_genus_scaled))
+
+top_genera_melt3<- merge(top_genera_melt, metadata, by.x = "Sample", by.y = "feature.id")
+names(top_genera_melt3)
+
+head(top_genera_melt3)
+
+
+```
+
+
+```{r chunk23}
+
+# loop to fit GAMMs to each genus
+
+year_estimates<-list()
+
+taxanames<-unique(top_genera_melt3$Genus)
+
+for (i in 1:length(taxanames)){
+  tryCatch({ #catch errors
+    print(i)
+    print(taxanames[i])
+    
+    taxa1<-subset(top_genera_melt3, Genus == taxanames[i])
+    # taxa1<-subset(top_genera_melt3, Genus == "Bacteroides")
+    
+    metadata<-taxa1
+
+  # scale variables
+    
+    metadata$Time_scaled<-as.numeric(rescale(metadata$HoursAfterSunrise, to = c(-1,1)))
+    
+
+### seq depth 
+
+metadata$Seq_depth_scaled <- as.numeric(rescale(metadata$Seq_depth_nospikein, to = c(-1,1)))
+
+metadata$Date<- as.numeric(metadata$SampleDate - min(metadata$SampleDate))
+metadata$Date_scaled<-as.numeric(rescale(metadata$Date, to = c(-1,1)))
+
+metadata$Maxtemp_12month_scaled <-as.numeric(rescale(metadata$Mean_maxtemp_12month, to = c(-1,1)))
+
+
+metadata$Age_scaled<-as.numeric(rescale(metadata$AgeAtSampling, to = c(-1,1)))
+
+
+    
+    # fit gamm    
+    m_taxa <- mgcv::bam(Abundance~
+                          s(Date_scaled, bs = "cr", k = 6)+ # specifically interested in this variable
+                          s(Time_scaled, bs = "cr")+
+                          s(month, bs = "cc")+
+                          s(Age_scaled, bs = "cr")+
+                          s(Seq_depth_scaled, bs = "cr")+
+                          Storage+
+                          Season+
+                          s(IndividID, bs = "re")+
+                          s(GroupAtSampling, bs = "re"),
+                        #correlation = corARMA(form = ~ 1|Year, p = 3),
+                        data=metadata,
+                        family = gaussian)
+    
+    print(summary(m_taxa))
+    #gam.check(m_taxa)
+    #plot(m_taxa)
+    
+    
+    
+    confint_df_year<-stats::confint(m_taxa, parm = "s(Date_scaled)",  type = "confidence")
+    confint_df_year$Taxa<-taxanames[i]
+    confint_df<-confint_df_year
+    
+    # convert into real estimate by adding the intercapt (= mean abundance)
+    
+    confint_df$est_real<-confint_df$est+summary(m_taxa)$p.coeff[1] 
+    confint_df$lower_real<- confint_df$lower+summary(m_taxa)$p.coeff[1] 
+    confint_df$upper_real<- confint_df$upper+summary(m_taxa)$p.coeff[1] 
+    
+    ## add effect size and p value
+    
+    summary<-summary(m_taxa)
+    confint_df$effect_size<-  summary$s.table[1,3]
+    confint_df$P_val<-  summary$s.table[1,4]
+    
+    year_estimates[[i]]<-confint_df
+    
+    
+    
+  }, error=function(e){})
+}
+
+
+
+names(year_estimates)<-taxanames
+
+year_estimates_df<-data.frame(do.call(rbind, year_estimates))
+
+
+
+```
+
+```{r}
+year_estimates_df$Significant <-year_estimates_df$P_val<0.05
+
+year_estimates_df$Year<-as.numeric(rescale(year_estimates_df$Date_scaled, to = c(1997,2019)))
+
+
+ggplot(year_estimates_df, aes(x = Year, y = est))+geom_line()+geom_ribbon(aes(ymin = lower, ymax = upper, fill = Significant), alpha = 0.5)+
+  facet_wrap(~Taxa)+ theme_bw()+
+  scale_fill_manual(values = c("grey", "navyblue"))+
+  theme(axis.text.x = element_text(angle = 45, vjust=0.7))+
+  geom_hline(yintercept = 0, linetype = "dashed")+
+  coord_cartesian(ylim = c(-3,3))
+
+
+
+
+year_estimates_red<- subset(year_estimates_df, Taxa == "Lactococcus"| Taxa == "Pediococcus"| Taxa == "Weissella"|Taxa == "Bacteroides" | Taxa == "Fusobacterium" | Taxa == "Rikenellaceae RC9 gut group" )
+
+
+
+year_estimates_red$Taxa<-factor(year_estimates_red$Taxa, levels = c("Bacteroides",  "Rikenellaceae RC9 gut group","Fusobacterium", "Lactococcus", "Pediococcus", "Weissella"))
+unique(year_estimates_red$Taxa)
+
+year_estimates_red$Class <- ifelse(year_estimates_red$Taxa == "Bacteroides" | year_estimates_red$Taxa == "Rikenellaceae RC9 gut group", "Bacteroidia", NA)
+year_estimates_red$Class <- ifelse(year_estimates_red$Taxa == "Fusobacterium" , "Fusobacteria", year_estimates_red$Class)
+year_estimates_red$Class <- ifelse(year_estimates_red$Taxa == "Lactococcus" | year_estimates_red$Taxa == "Pediococcus"| year_estimates_red$Taxa == "Weissella", "Bacilli",  year_estimates_red$Class)
+
+levels(year_estimates_red$Taxa)<-c("a) Bacteroides", "b) Rikenellaceae RC9","c) Fusobacterium", "d) Lactococcus (LAB)", "e) Pediococcus (LAB)", "f) Weissella (LAB)")
+
+
+
+ggplot(year_estimates_red,aes(x = Year, y = est))+
+  geom_line(size = 0.8, aes(col = Class))+
+  geom_line(size = 0.8, alpha = 0.4, col = "black")+
+  facet_wrap(~Taxa, ncol = 3)+
+  geom_ribbon(aes(ymin = lower, ymax = upper, fill = Class ), alpha = 0.7)+
+  coord_cartesian(ylim = c(-3.5,3.5))+
+  geom_hline(yintercept = 0, linetype = "dashed")+
+  scale_fill_manual(values = c(pal[1], pal[8], pal[7]))+
+  scale_color_manual(values = c(pal[1], pal[8], pal[7]))+
+   theme_fira() +
+ theme(plot.margin=unit(c(0.2,0.5,0,0.2),"cm"))+
+  #labs(fill = "Class", col = "Genus")+
+  ylab("Estimate")+
+  xlab("")+
+    theme(axis.text.x = element_text(angle = 45, vjust=0.7))+
+ annotate("segment", x=-Inf, xend=Inf, y=-Inf, yend=-Inf, col = "black")+
+  annotate("segment", x=-Inf, xend=-Inf, y=-Inf, yend=Inf, col = "darkgrey")+
+  theme(panel.grid.major = element_blank())
+
+
+# firatheme::firaSave("C:/Users/risel/Dropbox/Sommer postdoc/Meerkat project/PROJECTS/MeerkatSpikeInData/Manuscripts/TB population level paper/GCB/Resubmission/Figures/fig3.pdf", device = "pdf")
+
+
+```
+
+
+
+# Fig. 4: JDSMs
+
+```{r}
+
+# Using scaled counts
+
+
+meerkat_genus<-microbiome::aggregate_top_taxa(meerkat_filtered, "Genus", top = 50)
+clr_scaled <-microbiome::transform(meerkat_genus, transform = "clr")
+
+
+taxa_to_keep <- c("[Ruminococcus] torques group" , "Arthrobacter", "Bacillus","Bacteroides",
+ "Blautia", "Catenisphaera" ,"Christensenellaceae R-7 group", "Clostridium sensu stricto 1",
+"Collinsella" ,"Enterococcus" , "Escherichia-Shigella","Fusobacterium",
+"Geodermatophilus","Lachnoclostridium", "Lactococcus" ,"Marvinbryantia" ,
+"Paeniclostridium","Peptoclostridium" , "Peptococcus" ,"Phascolarctobacterium",
+"Romboutsia", "Slackia" ,"Turicibacter" , "Weissella" , 
+"Rikenellaceae RC9 gut group", "Helicobacter" , "Parabacteroides", "Lactobacillus",
+ "Pediococcus", "Streptococcus" )
+
+#meerkat_genus<-microbiome::aggregate_top_taxa(meerkat_filtered, "Genus", top = 50)
+
+#meerkat_genus_scaled<-prune_taxa(taxa_to_keep, meerkat_genus)
+meerkat_genus_scaled<-prune_taxa(taxa_to_keep,clr_scaled) # new
+meerkat_genus_scaled<-subset_samples(meerkat_genus_scaled, !is.na(Mean_rainfall_12month_NOAA))
+
+
+#############
+
+taxa_names(meerkat_genus_scaled)
+taxa_names(meerkat_genus_scaled)[10]<-paste(taxa_names(meerkat_genus_scaled)[10], "(LAB)")
+taxa_names(meerkat_genus_scaled)[16]<-paste(taxa_names(meerkat_genus_scaled)[16], "(LAB)")
+taxa_names(meerkat_genus_scaled)[17]<-paste(taxa_names(meerkat_genus_scaled)[17], "(LAB)")
+taxa_names(meerkat_genus_scaled)[21]<-paste(taxa_names(meerkat_genus_scaled)[21], "(LAB)")
+taxa_names(meerkat_genus_scaled)[28]<-paste(taxa_names(meerkat_genus_scaled)[28], "(LAB)")
+taxa_names(meerkat_genus_scaled)[30]<-paste(taxa_names(meerkat_genus_scaled)[30], "(LAB)")
+
+```
+
+* Data preparation
+
+```{r}
+
+ys <- data.frame(t(otu_table(meerkat_genus_scaled)))
+  
+names(ys) <-taxa_names(meerkat_genus_scaled)
+
+
+#y<-data.frame(scale(y))
+Xs<-data.frame(sample_data(meerkat_genus_scaled))
+
+
+
+Xs$Rainfall_1month_scaled <-as.numeric(rescale(Xs$Mean_rainfall_1month_NOAA, to = c(-1,1)))
+hist(Xs$Rainfall_1month_scaled)
+
+Xs$Rainfall_3month_scaled <-as.numeric(rescale(Xs$Mean_rainfall_3month_NOAA, to = c(-1,1)))
+hist(Xs$Rainfall_3month_scaled)
+
+Xs$Rainfall_6month_scaled <-as.numeric(rescale(Xs$Mean_rainfall_6month_NOAA, to = c(-1,1)))
+hist(Xs$Rainfall_6month_scaled)
+
+Xs$Rainfall_12month_scaled <-as.numeric(rescale(Xs$Mean_rainfall_12month_NOAA, to = c(-1,1)))
+hist(Xs$Rainfall_12month_scaled)
+
+## KRC/VZ rainfall data 
+
+Xs$Rainfall_3month_scaled_local <-as.numeric(rescale(Xs$Mean_rainfall_3month, to = c(-1,1)))
+hist(Xs$Rainfall_3month_scaled_local)
+
+Xs$Rainfall_12month_scaled_local <-as.numeric(rescale(Xs$Mean_rainfall_12month, to = c(-1,1)))
+hist(Xs$Rainfall_12month_scaled_local)
+
+
+## temperature
+
+
+Xs$Maxtemp_1month_scaled <-as.numeric(rescale(Xs$Mean_maxtemp_1month, to = c(-1,1)))
+hist(Xs$Maxtemp_1month_scaled)
+
+Xs$Maxtemp_3month_scaled <-as.numeric(rescale(Xs$Mean_maxtemp_3month, to = c(-1,1)))
+hist(Xs$Maxtemp_3month_scaled)
+
+Xs$Maxtemp_6month_scaled <-as.numeric(rescale(Xs$Mean_maxtemp_6month, to = c(-1,1)))
+hist(Xs$Maxtemp_6month_scaled)
+
+Xs$Maxtemp_12month_scaled <-as.numeric(rescale(Xs$Mean_maxtemp_12month, to = c(-1,1)))
+hist(Xs$Maxtemp_12month_scaled)
+
+
+### seq depth 
+### seq depth 
+
+#Xs$Abundance_scaled <- as.numeric(rescale(Xs$TotalAbundance, to = c(-1,1)))
+Xs$Seq_depth_scaled <- as.numeric(rescale(Xs$Seq_depth_nospikein, to = c(-1,1)))
+hist(Xs$Seq_depth_scaled)
+
+
+#Xs$TotalAbundance_scaled <- rescale(Xs$TotalAbundance, to = c(-1,1))
+
+Xs$Year<-as.factor(Xs$Year)
+
+min(Xs$SampleDate)
+Xs$Date<- as.numeric(Xs$SampleDate - min(Xs$SampleDate))
+Xs$Date_scaled<-as.numeric(rescale(Xs$Date, to = c(-1,1)))
+
+
+Xs$Condition_scaled<-as.numeric(rescale(Xs$Condition_weight, to = c(-1,1)))
+Xs$Age_scaled<-as.numeric(rescale(Xs$AgeAtSampling, to = c(-1,1)))
+
+Xs$TB_stage<-factor(Xs$TB_stage, levels = c( "Unexposed","Exposed", "Diseased"))
+
+names(Xs)
+
+Xs<-Xs[,c(1,2, 15, 5, 22, 24, 21, 31,33, 49:60,62:64)]
+names(Xs)
+
+
+mr<-mean(Xs$Rainfall_12month_scaled)
+mt<-mean(Xs$Maxtemp_12month_scaled)
+
+Xs$Climate_cat <-ifelse(Xs$Maxtemp_12month_scaled>mt & Xs$Rainfall_12month_scaled < mr, "HighTemp_LowRainfall", NA)
+Xs$Climate_cat <-ifelse(Xs$Maxtemp_12month_scaled<mt & Xs$Rainfall_12month_scaled < mr, "LowTemp_LowRainfall", Xs$Climate_cat)
+Xs$Climate_cat <-ifelse(Xs$Maxtemp_12month_scaled<mt & Xs$Rainfall_12month_scaled > mr, "LowTemp_HighRainfall", Xs$Climate_cat)
+Xs$Climate_cat <-ifelse(Xs$Maxtemp_12month_scaled>mt & Xs$Rainfall_12month_scaled > mr, "HighTemp_HighRainfall", Xs$Climate_cat)
+table(Xs$Climate_cat)
+
+Xs$Climate_cat<-factor(Xs$Climate_cat, levels = c("LowTemp_HighRainfall", "HighTemp_LowRainfall", "HighTemp_HighRainfall", "LowTemp_LowRainfall"))
+
+Xs$Season <-factor(Xs$Season, levels = c("WET", "DRY"))
+
+
+
+head(ys)[1:5,1:5]
+
+ggpairs(Xs[,c(6,11,17,13,19)])
+
+
+```
+
+
+* Model fitting - reduced model with just date and methodological variables (plus time of day - biggest driver of composition)
+
+```{r}
+
+fit_reduced_scaled <- gllvm(ys, Xs, 
+             num.lv = 2,
+            formula = ~  Date_scaled+Storage+TimeCat+ Seq_depth_scaled, 
+             family = "gaussian",
+            row.eff = ~(1|IndividID)+ (1|GroupAtSampling))
+
+coefplot(fit_reduced_scaled, cex.ylab = 0.5 ,mar = c(5,12,2,1), which.Xcoef = c(1))
+
+
+```
+
+
+* Extract estimates
+
+```{r}
+
+df<-coef(fit_reduced_scaled)
+est_df<-data.frame(df$Intercept)
+est_df2<-data.frame(df$Xcoef) 
+est_df3<-merge(est_df, est_df2, by = 0)
+
+# order genera
+
+row.names(est_df3)<-est_df3$Row.names
+est_df3<-est_df3[colnames(ys),]
+
+#put est_df3 into long format
+
+names(est_df3)[1]<- "Genus"
+names(est_df3)[2]<- "Intercept"
+
+estimates_df <- gather(est_df3, Treatment, Estimate, names(est_df3)[2]:names(est_df3)[ncol(est_df3)], factor_key=TRUE)
+
+############# extract confindence intervals  ####
+############# extract confindence intervals  ####
+############# extract confindence intervals  ####
+############# extract confindence intervals  ####
+
+
+confint_df<-data.frame(confint(fit_reduced_scaled))
+
+
+confint_df<-rbind(confint_df[rownames(confint_df) %like% "Xcoef", ],
+confint_df[rownames(confint_df) %like% "Intercept", ])
+
+head(confint_df)
+
+# add a column with correct variable level
+variables<- colnames(est_df3)[3:ncol(est_df3)]
+variables<-c(variables, "Intercept")
+variables1<-rep(variables, nrow(est_df))
+variables2<-variables1[order(match(variables1, variables))]
+
+confint_df$Treatment<-variables2
+
+
+# column with taxa names. Should be automatically in the correct order but double check
+
+confint_df$Genus<-rep(colnames(ys), length(unique(confint_df$Treatment)))
+
+
+merged<-merge(estimates_df, confint_df, by = c("Treatment", "Genus"))
+
+
+final_estimates_reduced<- merged
+names(final_estimates_reduced)[4]<-"CI_lower"
+names(final_estimates_reduced)[5]<-"CI_upper"
+
+#final_estimates<- merged[,c(1,2,3,7,8)]
+head(final_estimates_reduced)
+unique(final_estimates_reduced$Treatment)
+
+final_estimates_reduced2<-subset(final_estimates_reduced, Treatment == "Date_scaled")
+
+## add significance
+
+final_estimates_reduced2$Sig<- !data.table::between(0, final_estimates_reduced2$CI_lower, final_estimates_reduced2$CI_upper)
+
+
+final_estimates_reduced2$Genus<-factor(final_estimates_reduced2$Genus)
+
+genus_order<-as.character((final_estimates_reduced2 %>% arrange(Estimate))$Genus)
+
+
+```
+
+*full model
+
+* see JDSM_model_selection.R for model selection 
+
+```{r}
+
+
+########## final model
+
+m_final <- gllvm(ys, Xs, 
+             num.lv = 2,
+             formula = ~ 
+             TB_stage + 
+             Season+
+             Maxtemp_12month_scaled+ 
+             Seq_depth_scaled+
+             Storage + 
+             TimeCat+
+             Age_scaled+
+             Condition_scaled, 
+             family = "gaussian",
+             row.eff = ~(1|IndividID)+ (1|GroupAtSampling))
+
+
+coefplot(m_final, which.Xcoef = c(1:4, 8), cex.ylab = 0.7)
+
+### explanatory power ###
+
+
+linpred_df<- data.frame(residuals(m_final)$linpred)
+head(linpred_df)
+names(linpred_df)<-names(ys)
+
+
+r2_list<-list()
+taxanames<-names(linpred_df)
+
+for (i in 1:length(taxanames)){
+r <- as.numeric(cor(linpred_df[,i], ys[i]))
+r2<-r^2
+
+r2_list[i]<- r2
+}
+
+r2_df<-data.frame(do.call(rbind, r2_list))
+r2_df$Genus<-taxanames
+names(r2_df)[1]<-"R2"
+summary(r2_df$R2)
+r2_df %>% arrange(R2)
+
+# Min.   1st Qu.  Median    Mean 3rd Qu.    Max. 
+#0.07585 0.23246 0.33921 0.38398 0.54571 0.76018 
+
+#####
+
+
+m_climate <- gllvm(ys, Xs, 
+             num.lv = 2,
+             formula = ~ 
+             TB_stage + 
+            Season+
+             Climate_cat+
+             Seq_depth_scaled+
+             Storage + 
+             TimeCat+
+             Age_scaled+
+            Condition_scaled, 
+             family = "gaussian",
+             row.eff = ~(1|IndividID)+ (1|GroupAtSampling))
+coefplot(m_climate, which.Xcoef = c(3:6, 11), cex.ylab = 0.7)
+
+
+#### null model 
+
+m_null2 <- gllvm(ys, Xs, 
+             num.lv = 2,
+             formula = ~ 
+            # TB_stage + 
+            #Season+
+             #Rainfall_3month_scaled + 
+             #Rainfall_12month_scaled+
+            # Maxtemp_3month_scaled+
+             #Maxtemp_12month_scaled+ 
+             Seq_depth_scaled+
+             Storage+
+             TimeCat+
+             Age_scaled,
+            #Condition_scaled, 
+             family = "gaussian",
+            row.eff = ~(1|IndividID)+ (1|GroupAtSampling))
+
+cov_env<-getResidualCov(m_final, adjust = 0)#
+cov_null<-getResidualCov(m_null2, adjust = 0)#
+
+# variance explained (full model compared to null model)
+1 - cov_env$trace / cov_null$trace
+
+
+################
+################
+################
+################
+
+# effect of rainfall
+
+m_rainfall <- gllvm(ys, Xs, 
+             num.lv = 2,
+             formula = ~ 
+             TB_stage + 
+              Season+
+             Rainfall_12month_scaled+
+             Seq_depth_scaled+
+             Storage + 
+             TimeCat+
+             Age_scaled+
+            Condition_scaled, 
+             family = "gaussian",
+             row.eff = ~(1|IndividID)+ (1|GroupAtSampling))
+
+coefplot(m_rainfall, which.Xcoef = c(4), cex.ylab = 0.7, mar = c(5,12,2,1))
+
+AIC(m_rainfall, m_final) # AIC comparison
+
+
+```
+
+*Extract estimates 
+
+```{r}
+genus_order<-as.character((final_estimates_reduced2 %>% arrange(Estimate))$Genus)
+
+
+df<-coef(m_final)
+est_df<-data.frame(df$Intercept)
+est_df2<-data.frame(df$Xcoef) # choose columns of interest
+est_df3<-merge(est_df, est_df2, by = 0)
+
+
+# order genera
+
+row.names(est_df3)<-est_df3$Row.names
+est_df3<-est_df3[colnames(ys),]
+
+#put est_df3 into long format
+
+names(est_df3)[1]<- "Genus"
+names(est_df3)[2]<- "Intercept"
+
+estimates_df <- gather(est_df3, Treatment, Estimate, names(est_df3)[2]:names(est_df3)[ncol(est_df3)], factor_key=TRUE)
+
+############# extract confindence intervals  ####
+############# extract confindence intervals  ####
+############# extract confindence intervals  ####
+############# extract confindence intervals  ####
+
+
+confint_df<-data.frame(confint(m_final))
+confint_df<-rbind(confint_df[rownames(confint_df) %like% "Xcoef", ],
+confint_df[rownames(confint_df) %like% "Intercept", ])
+
+
+# add a column with correct variable level
+variables<- colnames(est_df3)[3:ncol(est_df3)]
+variables<-c(variables, "Intercept")
+variables1<-rep(variables, nrow(est_df))
+variables2<-variables1[order(match(variables1, variables))]
+
+
+confint_df$Treatment<-variables2
+
+
+# column with taxa names. Should be automatically in the correct order but double check
+
+confint_df$Genus<-rep(colnames(ys), length(unique(confint_df$Treatment)))
+
+# now have estimates, confidence intervals, aas seperate data frames, but they are in different formats. Need to massage them into one dataframe for plotting.
+
+merged<-merge(estimates_df, confint_df, by = c("Treatment", "Genus"))
+
+
+final_estimates<- merged
+names(final_estimates)[4]<-"CI_lower"
+names(final_estimates)[5]<-"CI_upper"
+
+
+final_estimates2<-subset(final_estimates, Treatment == "TB_stageExposed" | Treatment == "TB_stageDiseased"| Treatment ==  "SeasonDRY"| Treatment ==  "Maxtemp_12month_scaled" |Treatment ==  "Condition_scaled")
+unique(final_estimates2$Treatment)
+
+
+## add significance
+
+final_estimates2$Sig<- !data.table::between(0, final_estimates2$CI_lower, final_estimates2$CI_upper)
+
+
+#########
+#########
+#########
+#########
+
+final_estimates3<-rbind(final_estimates2, final_estimates_reduced2)
+
+levels(final_estimates3$Treatment)
+final_estimates3$Treatment<-factor(final_estimates3$Treatment)
+
+final_estimates3$Treatment<-factor(final_estimates3$Treatment, levels = c( "Date_scaled","SeasonDRY", "Maxtemp_12month_scaled", "TB_stageExposed",  "TB_stageDiseased" , "Condition_scaled"))
+
+
+### tax table ###
+### tax table ###
+### tax table ###
+### tax table ###
+
+meerkat_genus<-tax_glom(meerkat_final, taxrank = "Genus")
+meerkat_genus<-core(meerkat_genus, detection = 0, prev = 0.1)
+
+taxonomy<-data.frame(tax_table(meerkat_genus))
+tax<-taxonomy[,c("Genus", "Class")]
+tax<-distinct(tax, Genus, .keep_all = T)
+
+unique(tax$Genus)%>%sort()
+unique(final_estimates3$Genus) %>% sort()
+
+tax$Genus <- ifelse(tax$Genus == "Lactococcus", "Lactococcus (LAB)", tax$Genus)
+tax$Genus <- ifelse(tax$Genus == "Lactobacillus", "Lactobacillus (LAB)", tax$Genus)
+tax$Genus <- ifelse(tax$Genus == "Enterococcus", "Enterococcus (LAB)", tax$Genus)
+tax$Genus <- ifelse(tax$Genus == "Pediococcus", "Pediococcus (LAB)", tax$Genus)
+tax$Genus <- ifelse(tax$Genus == "Streptococcus", "Streptococcus (LAB)", tax$Genus)
+tax$Genus <- ifelse(tax$Genus == "Weissella", "Weissella (LAB)", tax$Genus)
+
+
+final_estimates3$Class<-expss::vlookup(final_estimates3$Genus, tax, lookup_column = "Genus", result_column = "Class")
+
+
+final_estimates3$Genus<-factor(final_estimates3$Genus, levels = genus_order)
+
+# code genus colours
+
+pal<-brewer.pal(10,"Paired")
+pal<-c(pal, "lightgrey")
+pal<-pal[c(2,1,11,4,3,6,9,10)]
+pal<-rev(pal)
+scales::show_col(pal)
+
+final_estimates3 <- final_estimates3 %>% 
+  mutate(Colour = case_when((Class == "Bacteroidia") ~ pal[8],
+                             (Class == "Fusobacteriia") ~ pal[7],
+                             (Class == "Clostridia") ~ pal[5],
+                             (Class == "Bacilli") ~ pal[1] )) 
+
+final_estimates3$Colour<-ifelse(is.na(final_estimates3$Colour), "black", as.character(final_estimates3$Colour))
+
+
+final_estimates3<-final_estimates3 %>% arrange( Treatment, Genus)
+
+# variable labels
+
+variable_names <- c(
+                    `Date_scaled` = "a) Date",
+                    `TB_stageExposed` = "d) TB status \n(Exposed)",
+                    `TB_stageDiseased` = "e) TB status \n(Diseased)",
+                    `SeasonDRY` = "b) Season \n(Dry)",
+                    `Maxtemp_12month_scaled` = "c) Long-term \nmax. temp.",
+                    `Condition_scaled` = "f) Body \ncondition"
+                    )
+
+
+final_estimates3<-final_estimates3 %>% arrange( Treatment, Genus)
+
+## dummy data to keep x axis of most variables constant
+
+Treatment <- rep(as.character(unique(final_estimates3$Treatment)),2)
+Estimate<- c(2,2,2,2,2,2,-2,-2,-2,-2,-2,-2)
+Genus<- c("Bacillus","Bacillus", "Bacillus","Bacillus","Bacillus", "Bacillus","Collinsella","Collinsella", "Collinsella","Collinsella","Collinsella", "Collinsella" )
+Sig<-c(TRUE, TRUE, TRUE,TRUE, TRUE, TRUE,TRUE, TRUE, TRUE,TRUE, TRUE, TRUE )
+dummydata<- data.frame(Treatment, Estimate, Genus, Sig)
+dummydata$Treatment<-factor(dummydata$Treatment, levels = c( "Date_scaled","SeasonDRY", "Maxtemp_12month_scaled", "TB_stageExposed",  "TB_stageDiseased" , "Condition_scaled"))
+
+fig4<-ggplot(final_estimates3, aes(y = Genus, x = Estimate, col = Sig, fill = Sig))+
+  facet_wrap(~Treatment, scales = "free_x", nrow = 1, labeller = as_labeller(variable_names))  + 
+  geom_errorbarh(aes(xmin = CI_lower, xmax = CI_upper, col = Sig), height = 0, size = 1)+
+   geom_point(size = 1.5, col = "black", pch = 21)+
+ geom_vline(xintercept = 0, linetype = "longdash")+
+  theme_bw(base_size = 12)+
+  scale_color_manual(values = c("grey", "dodgerblue3"))+
+  scale_fill_manual(values = c("grey", "dodgerblue3"))+
+  theme(axis.title.y = element_blank())+
+  theme(axis.text.y = element_text(face="bold", size = 8))+
+  theme(axis.text.y = element_text(colour=final_estimates3$Colour))+
+  theme(legend.position = "none")+
+  theme(strip.text.x = element_text(size = 12, face="bold"))+
+    geom_blank(data = dummydata)
+
+
+#########################
+#########################
+#########################
+#########################
+
+
+pal1<-c(pal[1] , pal[8], pal[5],  pal[7], "black")
+
+classes_to_keep<-c("Bacilli", "Clostridia", "Bacteroidia", "Fusobacteriia")
+final_estimates3$Class2<-ifelse(final_estimates3$Class%in% classes_to_keep, final_estimates3$Class, "Other")
+
+unique(final_estimates3$Class)
+
+p1<-ggplot(final_estimates3, aes(y = Genus, x = Estimate, fill = Class2))+
+  geom_col()+
+  facet_wrap(~Treatment, nrow = 1, scales = "free_x", labeller = as_labeller(variable_names))  + 
+  scale_fill_manual(values = pal1)+
+  labs(fill = "Class")
+
+legend<-get_legend(p1)
+
+top_panel<-ggarrange( fig4, legend, widths = c(10, 1))+ 
+  theme(plot.margin=unit(c(0.2,2.5,0.2,0.5),"cm"))
+ 
+
+
+```
+
+### Residual correlation plot
+
+```{r}
+
+
+cr1<-data.frame(getResidualCor(m_final))#
+
+names(cr1)<-names(ys)
+names(cr1)<-abbreviate(names(cr1), minlength = 15)
+rownames(cr1)<-abbreviate(rownames(cr1), minlength = 15 )
+
+cr2<-cor_pmat(cr1)
+
+corplot<-ggcorrplot(cr1, 
+   hc.order = TRUE,
+   outline.col = "white",
+   type = "full",
+   ggtheme = ggplot2::theme_minimal,
+   tl.cex = 7.5,
+   p.mat = cr2,
+   sig.level = 0.05,
+   #show.diag = F,
+   insig = "blank",
+  # colors = c("#6D9EC1", "white", "#E46726"))
+   colors = c("blue", "white", "red"))+
+     theme(axis.text.x = element_text(angle = 90, vjust=0.5))+
+  theme(plot.margin=unit(c(0.2,0.2,0.2,2),"cm"))
+
+
+
+```
+
+### Interaction between rainfall and climate 
+```{r fig.width = 15, fig.height = 8.5}
+
+df<-coef(m_climate)
+est_df<-data.frame(df$Intercept)
+est_df2<-data.frame(df$Xcoef) 
+est_df3<-merge(est_df, est_df2, by = 0)
+
+
+# order genera
+
+row.names(est_df3)<-est_df3$Row.names
+est_df3<-est_df3[colnames(ys),]
+
+#put est_df3 into long format
+
+names(est_df3)[1]<- "Genus"
+names(est_df3)[2]<- "Intercept"
+
+estimates_df <- gather(est_df3, Treatment, Estimate, names(est_df3)[2]:names(est_df3)[ncol(est_df3)], factor_key=TRUE)
+
+############# extract confindence intervals  ####
+############# extract confindence intervals  ####
+############# extract confindence intervals  ####
+############# extract confindence intervals  ####
+
+
+confint_df<-data.frame(confint(m_climate))
+
+confint_df<-rbind(confint_df[rownames(confint_df) %like% "Xcoef", ],
+confint_df[rownames(confint_df) %like% "Intercept", ])
+
+
+# add a column with correct variable level
+variables<- colnames(est_df3)[3:ncol(est_df3)]
+variables<-c(variables, "Intercept")
+variables1<-rep(variables, nrow(est_df))
+variables2<-variables1[order(match(variables1, variables))]
+
+
+confint_df$Treatment<-variables2
+
+
+# column with taxa names. Should be automatically in the correct order but double check
+
+confint_df$Genus<-rep(colnames(ys), length(unique(confint_df$Treatment)))
+
+
+
+# now have estimates, confidence intervals, aas seperate data frames, but they are in different formats. Need to massage them into one dataframe for plotting.
+
+merged<-merge(estimates_df, confint_df, by = c("Treatment", "Genus"))
+
+
+final_estimates<- merged
+names(final_estimates)[4]<-"CI_lower"
+names(final_estimates)[5]<-"CI_upper"
+
+
+terms<- c("Climate_catHighTemp_HighRainfall", "Climate_catHighTemp_LowRainfall", 
+  "Climate_catLowTemp_LowRainfall", "Intercept" )
+
+final_estimates$Keep<-final_estimates$Treatment %in% terms
+
+
+final_estimates2<-subset(final_estimates, Keep == T)
+
+intercept<-subset(final_estimates2, Treatment == "Intercept")
+intercept$CI_lower <- abs(abs(intercept$CI_lower) - abs(intercept$Estimate))*-1
+intercept$CI_upper <- abs(abs(intercept$CI_upper) - abs(intercept$Estimate))
+intercept$Estimate<-0
+
+final_estimates2<-rbind(subset(final_estimates2, Treatment != "Intercept"), intercept)
+
+final_estimates2$Treatment<-factor(final_estimates2$Treatment)
+
+## add significance
+
+final_estimates2$Sig<- !data.table::between(0, final_estimates2$CI_lower, final_estimates2$CI_upper)
+
+
+#########
+#########
+#########
+#########
+
+levels(final_estimates2$Treatment)<- c("LT_HR", "HT_LR", "HT_HR", "LT_LR")
+final_estimates2$Treatment<-factor(final_estimates2$Treatment, levels = c("LT_HR","LT_LR",  "HT_HR", "HT_LR"))
+
+
+interaction_plot<-ggplot(subset(final_estimates2, 
+                                Genus == "Bacteroides" |Genus == "Fusobacterium" | 
+                                  Genus == "Lactococcus (LAB)"| Genus == "Pediococcus (LAB)" ), 
+                         aes(y = Estimate,x = Treatment, col = Treatment, fill = Treatment))+
+  facet_wrap(~Genus,  nrow = 1)  + 
+  geom_errorbar(aes(ymin = CI_lower, ymax = CI_upper, col = Treatment), width = 0, size = 2)+
+   geom_point(size = 4, col = "white", pch = 21)+
+ geom_hline(yintercept = 0, linetype = "longdash")+
+  theme_bw(base_size = 12)+
+    theme(axis.text.x = element_text(angle = 90, vjust=0.5))+
+  scale_colour_tableau('Classic Blue-Red 12', labels = c("Low max temp/High rain", "Low max temp/Low rain","High max temp/High rain", "High max temp/Low rain"))+
+  scale_fill_tableau('Classic Blue-Red 12', labels = c("Low max temp/High rain", "Low max temp/Low rain","High max temp/High rain", "High max temp/Low rain"))+
+
+  theme(axis.text.y = element_text(face="bold", size = 9))+
+  labs(col = "Climate (year prior \nto sampling)", fill = "Climate (year prior \nto sampling)")+
+  theme(plot.margin=unit(c(0.2,0.5,0.2,0.3),"cm"))+
+  xlab("Climate categories")+
+  ylab("Estimate")
+
+
+lower_panel<- ggarrange( corplot,interaction_plot,  ncol = 2, widths = c(1,1.5), 
+                         labels = c("g)", "h)"), align = "h")+
+   theme(plot.margin=unit(c(0,0,0.2,0.1),"cm"))
+
+
+## figure 4
+ggarrange(top_panel, lower_panel, ncol = 1, heights = c(1,1))
+
+
+```
+
+# Fig 5: Network analysis
+
+*Need to do CLR analysis from here as this accounts for bacterial load
+
+```{r chunk32}
+
+
+#### extract site x species array
+
+
+
+meerkat_genus<-microbiome::aggregate_top_taxa(meerkat_filtered, "Genus", top = 50)
+clr_scaled <-microbiome::transform(meerkat_genus, transform = "clr")
+
+
+taxa_to_keep <- c("[Ruminococcus] torques group" , "Arthrobacter", "Bacillus","Bacteroides",
+ "Blautia", "Catenisphaera" ,"Christensenellaceae R-7 group", "Clostridium sensu stricto 1",
+"Collinsella" ,"Enterococcus" , "Escherichia-Shigella","Fusobacterium",
+"Geodermatophilus","Lachnoclostridium", "Lactococcus" ,"Marvinbryantia" ,
+"Paeniclostridium","Peptoclostridium" , "Peptococcus" ,"Phascolarctobacterium",
+"Romboutsia", "Slackia" ,"Turicibacter" , "Weissella" , 
+"Rikenellaceae RC9 gut group", "Helicobacter" , "Parabacteroides", "Lactobacillus",
+ "Pediococcus", "Streptococcus" )
+
+meerkat_genus_scaled<-prune_taxa(taxa_to_keep,clr_scaled) # new
+meerkat_genus_scaled<-subset_samples(meerkat_genus_scaled, !is.na(Mean_rainfall_12month_NOAA))
+
+
+
+phylo_array<-data.frame(t(meerkat_genus_scaled@otu_table@.Data))
+
+
+#phylo_array[1:5,1:5]
+names(phylo_array)<-taxa_names(meerkat_genus_scaled)
+
+phylo_array[1:5,1:5]
+
+########################## 
+
+#### genreate association matrix from the 'real' data
+# this uses the package NetCoMi
+
+
+net_real <- netConstruct(phylo_array, verbose = 0, 
+                         measure = "pearson",
+                         normMethod = "none",
+                         zeroMethod = "none",
+                         sparsMethod = "threshold",
+                         thresh = 0.3)
+
+
+props_single <- netAnalyze(net_real, 
+                           centrLCC = TRUE,
+                           clustMethod = "cluster_fast_greedy",
+                           hubPar = "eigenvector",
+                           weightDeg = F, 
+                           normDeg = F)
+
+
+
+plot(props_single, 
+     nodeColor = "cluster", 
+     layout = "spring",
+     repulsion = 1,
+     # nodeSize = "eigenvector",
+     title1 = F, 
+     #showTitle = TRUE,
+     cexTitle = 2.3,
+     shortenLabels = "simple",
+     labelScale = F,
+     nodeSize = "fix",
+     colorVec = c("skyblue", "orchid",  "pink","orange", "lightgreen"),
+     nodeTransp = 0,
+     borderCol = "white",
+     borderWidth = 3,
+     highlightHubs = F ,
+     edgeTranspLow = 0)
+
+legend(0.7, 1.1, cex = 1, title = "Direction", 
+       legend = c("+","-"), lty = 1, lwd = 1, col = c("#009900","red"), 
+       bty = "n", horiz = F)
+
+cluster_memb<-data.frame(props_single$clustering$clust1)
+
+names(cluster_memb)<-"Cluster"
+table(cluster_memb$Cluster)
+
+# make singletons their own cluster (not zero)
+
+cluster_memb$Genus<-row.names(cluster_memb)
+
+
+cluster_memb<-cluster_memb %>% mutate(Cluster2 = case_when(Cluster == 2 ~ "Lactococcus cluster",
+                                 Cluster == 1 ~ "Bacteroides cluster",
+                                Cluster == 4 ~ "Blautia cluster",
+                                 Cluster == 5 ~ "Clostridium cluster",
+                                 Cluster == 3 ~ "Bacillus cluster",
+                                 Genus == "Escherichia-Shigella" ~ "Escherichia-Shigella",
+                                 Genus == "Peptoclostridium" ~ "Peptoclostridium"))
+
+```
+
+### Survival analysis
+
+```{r chunk33}
+
+
+
+######### 2) Network approach ############
+######### 2) Network approach ############
+######### 2) Network approach ############
+######### 2) Network approach ############
+
+meerkat_genus<-microbiome::aggregate_top_taxa(meerkat_filtered, "Genus", top = 50)
+taxtable<-data.frame(tax_table(meerkat_genus))
+taxtable[1:5,1:2]
+taxtable_new<-merge(taxtable, cluster_memb, by = "Genus", all.x = T)
+taxtable_new<-taxtable_new[,c(1,4)]
+taxtable_new$Cluster2<-ifelse(is.na(taxtable_new$Cluster2) ,"None",taxtable_new$Cluster2 )
+
+rownames(taxtable_new)<-taxtable_new$Genus
+
+meerkat_genus@tax_table@.Data[,1]<-taxtable_new$Cluster2
+
+
+## merge by cluster
+
+cluster_ps<-tax_glom(meerkat_genus, taxrank = "Genus")
+tax_table(cluster_ps)
+
+
+cluster_clr <-microbiome::transform(cluster_ps, transform = "clr")
+
+keep<-taxa_names(cluster_clr)[-1]
+
+cluster_clr<-prune_taxa(keep, cluster_clr)
+taxa_names(cluster_clr)
+taxa_names(cluster_clr)<- c("Blautia cluster", "Bacillus cluster", "Bacteroides cluster", 
+                            "Clostridium cluster", "Lactococcus cluster", "Escherichia","Peptoclostridium" )
+
+
+cluster_clr<-subset_samples(cluster_clr, !is.na(Mean_rainfall_12month_NOAA))
+
+otutable<-data.frame(t(otu_table(cluster_clr)))
+
+otutable<-data.frame(rescale(otutable, to = c(-1,1)))
+
+### survival data ####
+### survival data ####
+
+
+survival_df<-data.frame(sample_data(cluster_clr))
+
+# calculate if ID is alive 6 months later, TRUE = dead
+
+survival_df$Time_180<-survival_df$SampleDate+180
+survival_df$Survival_180<- ifelse(survival_df$Time_180 < survival_df$DeathDate, FALSE,TRUE)
+
+
+table(survival_df$Survival_180)
+survival_df$FollowUp_180<-180
+
+survival_df_network<-merge(survival_df, otutable, by = 0)
+
+#############
+#############
+#############
+#############
+
+
+survival_df_network$IndividID<-as.character(survival_df_network$IndividID)
+
+survival_df_network$Condition_scaled<-as.numeric(rescale(survival_df_network$Condition_weight, to = c(-1,1)))
+survival_df_network$Age_scaled<-as.numeric(rescale(survival_df_network$AgeAtSampling, to = c(-1,1)))
+survival_df_network$Rainfall_12month_scaled <-as.numeric(rescale(survival_df_network$Mean_rainfall_12month_NOAA, to = c(-1,1)))
+survival_df_network$Maxtemp_12month_scaled <-as.numeric(rescale(survival_df_network$Mean_maxtemp_12month, to = c(-1,1)))
+
+
+survival_df_network$Season <-case_when(survival_df_network$Season == "WET" ~ "Wet",
+                                       survival_df_network$Season == "DRY" ~ "Dry")
+
+survival_df_network<-subset(survival_df_network, !is.na(Survival_180))
+
+###### model #########
+###### model #########
+###### model #########
+###### model #########
+
+
+fit_network <- coxme::coxme(Surv(FollowUp_180, Survival_180) ~ 
+
+                              Season + 
+                              Rainfall_12month_scaled+
+                              Maxtemp_12month_scaled+
+                              TB_stage + 
+                              SocialStatus + 
+                              Condition_scaled +
+                              Age_scaled+
+                              Lactococcus.cluster+
+                              Bacteroides.cluster+
+                             Blautia.cluster+
+                              Bacillus.cluster+
+                              Clostridium.cluster+
+                             Peptoclostridium+
+                              Escherichia+
+                              
+
+                             
+                              (1 | IndividID),
+                            data = survival_df_network)
+
+summary(fit_network)
+AIC(fit_network)
+
+### Dredge models 
+
+options(na.action = "na.fail") 
+
+dredge_genus_df<- MuMIn::dredge(fit_network)
+
+
+write.csv(dredge_genus_df, "dredge_results_clusters.csv")
+
+summary<-summary(model.avg(dredge_genus_df, subset = delta < 4))
+summary
+
+#saveRDS(summary, "model_averaging_survival.RDS")
+#readRDS("model_averaging_survival.RDS")
+
+
+### final model 
+
+
+m_survival <- coxme::coxme(Surv(FollowUp_180, Survival_180) ~ 
+
+                              Season + 
+                              Rainfall_12month_scaled+
+                              Maxtemp_12month_scaled+
+                              TB_stage + 
+                              SocialStatus + 
+                              Condition_scaled +
+                              Age_scaled+
+                              Lactococcus.cluster+
+
+                              (1 | IndividID),
+                            data = survival_df_network)
+
+
+labels <- c("TB stage (clinical signs)", "Age", "TB stage (Exposed)", "Social status (Sub)", 
+            "Max temp (1 year window)", "Lactococcus cluster", "Season (Wet)", 
+            "Rainfall (1 year window)", "Body condition")
+
+labels <- rev(labels)
+
+
+summary(m_survival)
+
+  
+sjPlot::plot_model(m_survival, 
+                   axis.lim = c(0.1,20),
+                   vline.color = "darkgrey", 
+                   sort.est = T,
+                   axis.labels = labels,
+                   dot.size= 4, 
+                   line.size = 1.5, 
+                   show.p = T)+
+  theme_bw(base_size = 16)+ggtitle("")+ylab("Hazard ratio")
+
+
+
+```
+
+
