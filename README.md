@@ -1,6 +1,6 @@
 # Meerkat-microbiome-climate-change
 
-Data, code and Rmarkdown report for "Climate change drives loss of bacterial gut mutualists at the expense of host survival in wild meerkats"
+Data, code and Rmarkdown report for "Climate change drives loss of bacterial gut mutualists at the expense of host survival in wild meerkats", published in Global Change Biology.
 
 **DATA**
 
